@@ -13766,6 +13766,84 @@ var PlaneGeometry = class _PlaneGeometry extends BufferGeometry {
     return new _PlaneGeometry(data.width, data.height, data.widthSegments, data.heightSegments);
   }
 };
+var RingGeometry = class _RingGeometry extends BufferGeometry {
+  /**
+   * Constructs a new ring geometry.
+   *
+   * @param {number} [innerRadius=0.5] - The inner radius of the ring.
+   * @param {number} [outerRadius=1] - The outer radius of the ring.
+   * @param {number} [thetaSegments=32] - Number of segments. A higher number means the ring will be more round. Minimum is `3`.
+   * @param {number} [phiSegments=1] - Number of segments per ring segment. Minimum is `1`.
+   * @param {number} [thetaStart=0] - Starting angle in radians.
+   * @param {number} [thetaLength=Math.PI*2] - Central angle in radians.
+   */
+  constructor(innerRadius = 0.5, outerRadius = 1, thetaSegments = 32, phiSegments = 1, thetaStart = 0, thetaLength = Math.PI * 2) {
+    super();
+    this.type = "RingGeometry";
+    this.parameters = {
+      innerRadius,
+      outerRadius,
+      thetaSegments,
+      phiSegments,
+      thetaStart,
+      thetaLength
+    };
+    thetaSegments = Math.max(3, thetaSegments);
+    phiSegments = Math.max(1, phiSegments);
+    const indices = [];
+    const vertices = [];
+    const normals = [];
+    const uvs = [];
+    let radius = innerRadius;
+    const radiusStep = (outerRadius - innerRadius) / phiSegments;
+    const vertex = new Vector3();
+    const uv2 = new Vector2();
+    for (let j = 0; j <= phiSegments; j++) {
+      for (let i = 0; i <= thetaSegments; i++) {
+        const segment = thetaStart + i / thetaSegments * thetaLength;
+        vertex.x = radius * Math.cos(segment);
+        vertex.y = radius * Math.sin(segment);
+        vertices.push(vertex.x, vertex.y, vertex.z);
+        normals.push(0, 0, 1);
+        uv2.x = (vertex.x / outerRadius + 1) / 2;
+        uv2.y = (vertex.y / outerRadius + 1) / 2;
+        uvs.push(uv2.x, uv2.y);
+      }
+      radius += radiusStep;
+    }
+    for (let j = 0; j < phiSegments; j++) {
+      const thetaSegmentLevel = j * (thetaSegments + 1);
+      for (let i = 0; i < thetaSegments; i++) {
+        const segment = i + thetaSegmentLevel;
+        const a = segment;
+        const b = segment + thetaSegments + 1;
+        const c = segment + thetaSegments + 2;
+        const d = segment + 1;
+        indices.push(a, b, d);
+        indices.push(b, c, d);
+      }
+    }
+    this.setIndex(indices);
+    this.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+    this.setAttribute("normal", new Float32BufferAttribute(normals, 3));
+    this.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+  }
+  copy(source) {
+    super.copy(source);
+    this.parameters = Object.assign({}, source.parameters);
+    return this;
+  }
+  /**
+   * Factory method for creating an instance of this class from the given
+   * JSON object.
+   *
+   * @param {Object} data - A JSON object representing the serialized geometry.
+   * @return {RingGeometry} A new instance.
+   */
+  static fromJSON(data) {
+    return new _RingGeometry(data.innerRadius, data.outerRadius, data.thetaSegments, data.phiSegments, data.thetaStart, data.thetaLength);
+  }
+};
 var SphereGeometry = class _SphereGeometry extends BufferGeometry {
   /**
    * Constructs a new sphere geometry.
@@ -35923,7 +36001,7 @@ var StructType = class {
     this.output = false;
   }
 };
-var Uniform = class {
+var Uniform2 = class {
   /**
    * Constructs a new uniform.
    *
@@ -35955,7 +36033,7 @@ var Uniform = class {
     return this.value;
   }
 };
-var NumberUniform = class extends Uniform {
+var NumberUniform = class extends Uniform2 {
   /**
    * Constructs a new Number uniform.
    *
@@ -35969,7 +36047,7 @@ var NumberUniform = class extends Uniform {
     this.itemSize = 1;
   }
 };
-var Vector2Uniform = class extends Uniform {
+var Vector2Uniform = class extends Uniform2 {
   /**
    * Constructs a new Number uniform.
    *
@@ -35983,7 +36061,7 @@ var Vector2Uniform = class extends Uniform {
     this.itemSize = 2;
   }
 };
-var Vector3Uniform = class extends Uniform {
+var Vector3Uniform = class extends Uniform2 {
   /**
    * Constructs a new Number uniform.
    *
@@ -35997,7 +36075,7 @@ var Vector3Uniform = class extends Uniform {
     this.itemSize = 3;
   }
 };
-var Vector4Uniform = class extends Uniform {
+var Vector4Uniform = class extends Uniform2 {
   /**
    * Constructs a new Number uniform.
    *
@@ -36011,7 +36089,7 @@ var Vector4Uniform = class extends Uniform {
     this.itemSize = 4;
   }
 };
-var ColorUniform = class extends Uniform {
+var ColorUniform = class extends Uniform2 {
   /**
    * Constructs a new Number uniform.
    *
@@ -36025,7 +36103,7 @@ var ColorUniform = class extends Uniform {
     this.itemSize = 3;
   }
 };
-var Matrix2Uniform = class extends Uniform {
+var Matrix2Uniform = class extends Uniform2 {
   /**
    * Constructs a new Number uniform.
    *
@@ -36039,7 +36117,7 @@ var Matrix2Uniform = class extends Uniform {
     this.itemSize = 4;
   }
 };
-var Matrix3Uniform = class extends Uniform {
+var Matrix3Uniform = class extends Uniform2 {
   /**
    * Constructs a new Number uniform.
    *
@@ -36053,7 +36131,7 @@ var Matrix3Uniform = class extends Uniform {
     this.itemSize = 12;
   }
 };
-var Matrix4Uniform = class extends Uniform {
+var Matrix4Uniform = class extends Uniform2 {
   /**
    * Constructs a new Number uniform.
    *
@@ -42754,7 +42832,7 @@ var NodeUniformBuffer = class extends UniformBuffer {
     return this.nodeUniform.value;
   }
 };
-var UniformsGroup = class extends UniformBuffer {
+var UniformsGroup2 = class extends UniformBuffer {
   /**
    * Constructs a new uniforms group.
    *
@@ -43077,7 +43155,7 @@ function arraysEqual(a, b, offset) {
   return true;
 }
 var _id$3 = 0;
-var NodeUniformsGroup = class extends UniformsGroup {
+var NodeUniformsGroup = class extends UniformsGroup2 {
   /**
    * Constructs a new node-based uniforms group.
    *
@@ -55514,10 +55592,22 @@ var WebGPURenderer = class extends Renderer {
 
 // clientLibs/threeOverlay.js
 var MAX_PIXEL_RATIO = 2;
-var CUBE_SIZE = 1.35;
-var CAMERA_DISTANCE = 3.8;
+var AVATAR_SELECTOR = ".sidebar-profile-avatar [data-testid='avatar-image'], .sidebar-profile-avatar .avatar-placeholder";
+var BASE_RING_INNER_RADIUS = 0.84;
+var BASE_RING_OUTER_RADIUS = 1;
+var ACCENT_ARC_LENGTH = Math.PI * 0.72;
+var TARGET_PADDING_PX = 5;
+var TARGET_PADDING_RATIO = 0.1;
+var RING_PULSE_SCALE = 0.04;
 function getPixelRatio() {
   return Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+}
+function getTargetElement() {
+  return document.querySelector(AVATAR_SELECTOR);
+}
+function getHighlightColor() {
+  const value = getComputedStyle(document.documentElement).getPropertyValue("--highlight-color").trim();
+  return value || "#006aff";
 }
 async function createWindowEffectsOverlay({ root }) {
   if (!root || !("gpu" in navigator)) {
@@ -55536,18 +55626,51 @@ async function createWindowEffectsOverlay({ root }) {
   root.replaceChildren(canvas);
   renderer.setClearColor(0, 0);
   const scene = new Scene();
-  const camera = new PerspectiveCamera(42, 1, 0.1, 100);
-  camera.position.set(0, 0, CAMERA_DISTANCE);
-  const cubeGeometry = new BoxGeometry(CUBE_SIZE, CUBE_SIZE, CUBE_SIZE);
-  const cubeMaterial = new MeshNormalMaterial();
-  const cube = new Mesh(cubeGeometry, cubeMaterial);
-  scene.add(cube);
+  const camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+  camera.position.z = 1;
+  const baseColor = new Color(getHighlightColor());
+  const accentColor = baseColor.clone().offsetHSL(0.05, 0.1, 0.12);
+  const baseRingGeometry = new RingGeometry(
+    BASE_RING_INNER_RADIUS,
+    BASE_RING_OUTER_RADIUS,
+    96
+  );
+  const baseRingMaterial = new MeshBasicMaterial({
+    color: baseColor,
+    transparent: true,
+    opacity: 0.28,
+    side: DoubleSide
+  });
+  const baseRing = new Mesh(baseRingGeometry, baseRingMaterial);
+  const accentRingGeometry = new RingGeometry(
+    BASE_RING_INNER_RADIUS,
+    BASE_RING_OUTER_RADIUS,
+    96,
+    1,
+    0,
+    ACCENT_ARC_LENGTH
+  );
+  const accentRingMaterial = new MeshBasicMaterial({
+    color: accentColor,
+    transparent: true,
+    opacity: 0.9,
+    side: DoubleSide
+  });
+  const accentRing = new Mesh(accentRingGeometry, accentRingMaterial);
+  const ringGroup = new Group();
+  ringGroup.visible = false;
+  ringGroup.add(baseRing);
+  ringGroup.add(accentRing);
+  scene.add(ringGroup);
   const resize = () => {
     const width = Math.max(window.innerWidth || 0, 1);
     const height = Math.max(window.innerHeight || 0, 1);
     renderer.setPixelRatio(getPixelRatio());
     renderer.setSize(width, height, false);
-    camera.aspect = width / height;
+    camera.left = -width / 2;
+    camera.right = width / 2;
+    camera.top = height / 2;
+    camera.bottom = -height / 2;
     camera.updateProjectionMatrix();
   };
   resize();
@@ -55555,17 +55678,38 @@ async function createWindowEffectsOverlay({ root }) {
   const start = performance.now();
   renderer.setAnimationLoop(() => {
     const elapsed = (performance.now() - start) * 1e-3;
-    cube.rotation.x = elapsed * 0.55;
-    cube.rotation.y = elapsed * 0.72;
-    cube.rotation.z = elapsed * 0.18;
+    const target = getTargetElement();
+    if (target) {
+      const rect = target.getBoundingClientRect();
+      const width = Math.max(window.innerWidth || 0, 1);
+      const height = Math.max(window.innerHeight || 0, 1);
+      const targetIsVisible = rect.width > 0 && rect.height > 0 && rect.bottom >= 0 && rect.right >= 0 && rect.top <= height && rect.left <= width;
+      if (targetIsVisible) {
+        const centerX = rect.left + rect.width / 2 - width / 2;
+        const centerY = height / 2 - (rect.top + rect.height / 2);
+        const outerRadius = Math.max(rect.width, rect.height) / 2 + Math.max(TARGET_PADDING_PX, rect.width * TARGET_PADDING_RATIO);
+        const pulse = 1 + Math.sin(elapsed * 2.4) * RING_PULSE_SCALE;
+        ringGroup.visible = true;
+        ringGroup.position.set(centerX, centerY, 0);
+        baseRing.scale.setScalar(outerRadius);
+        accentRing.scale.setScalar(outerRadius * pulse);
+        accentRing.rotation.z = elapsed * 0.95;
+      } else {
+        ringGroup.visible = false;
+      }
+    } else {
+      ringGroup.visible = false;
+    }
     renderer.render(scene, camera);
   });
   return {
     dispose() {
       window.removeEventListener("resize", resize);
       renderer.setAnimationLoop(null);
-      cubeGeometry.dispose();
-      cubeMaterial.dispose();
+      baseRingGeometry.dispose();
+      baseRingMaterial.dispose();
+      accentRingGeometry.dispose();
+      accentRingMaterial.dispose();
       renderer.dispose();
       root.replaceChildren();
     }

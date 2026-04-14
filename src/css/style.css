@@ -159,7 +159,7 @@ html {
 
   /* z-index */
   --profile-header-z-index: 1;
-  --window-effects-overlay-z-index: 1;
+  --window-effects-overlay-z-index: 8;
   --context-menu-z-index: 2;
   --header-z-index: 3;
   --footer-z-index: 3;
