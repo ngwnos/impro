@@ -61340,12 +61340,12 @@ async function createWindowEffectsOverlay({ root }) {
   const burnMask = burnMaskTextureNode.r.clamp(0, 1);
   const sceneBloomAlpha = sceneAlpha.max(bloomAlpha).clamp(0, 1);
   const sceneBloomPremultipliedColor = scenePassColor.rgb.mul(sceneAlpha).add(bloomPass.rgb.mul(bloomAlpha));
-  const compositeAlpha = sceneBloomAlpha.add(burnMask.mul(sceneBloomAlpha.oneMinus())).clamp(0, 1);
-  const compositePremultipliedColor = sceneBloomPremultipliedColor.mul(burnMask.oneMinus()).add(burnBackgroundColorNode.mul(burnMask));
-  renderPipeline.outputNode = vec42(
-    compositePremultipliedColor,
-    compositeAlpha
+  const burnAlpha = burnMask.mul(sceneBloomAlpha.oneMinus()).clamp(0, 1);
+  const compositeAlpha = sceneBloomAlpha.add(burnAlpha).clamp(0, 1);
+  const compositePremultipliedColor = sceneBloomPremultipliedColor.add(
+    burnBackgroundColorNode.mul(burnAlpha)
   );
+  renderPipeline.outputNode = vec42(compositePremultipliedColor, compositeAlpha);
   let laserModeEnabled = false;
   let laserPointerActive = false;
   let cursorClientX = getViewportWidth() * DEFAULT_CURSOR_POSITION.x;

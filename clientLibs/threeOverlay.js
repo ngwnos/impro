@@ -403,12 +403,11 @@ export async function createWindowEffectsOverlay({ root }) {
   const sceneBloomPremultipliedColor = scenePassColor.rgb
     .mul(sceneAlpha)
     .add(bloomPass.rgb.mul(bloomAlpha));
-  const compositeAlpha = sceneBloomAlpha
-    .add(burnMask.mul(sceneBloomAlpha.oneMinus()))
-    .clamp(0, 1);
-  const compositePremultipliedColor = sceneBloomPremultipliedColor
-    .mul(burnMask.oneMinus())
-    .add(burnBackgroundColorNode.mul(burnMask));
+  const burnAlpha = burnMask.mul(sceneBloomAlpha.oneMinus()).clamp(0, 1);
+  const compositeAlpha = sceneBloomAlpha.add(burnAlpha).clamp(0, 1);
+  const compositePremultipliedColor = sceneBloomPremultipliedColor.add(
+    burnBackgroundColorNode.mul(burnAlpha),
+  );
   renderPipeline.outputNode = vec4(compositePremultipliedColor, compositeAlpha);
 
   let laserModeEnabled = false;
