@@ -61051,6 +61051,7 @@ var LASER_LINE_COUNT = 18;
 var LASER_TOGGLE_CODE = "Backquote";
 var LASER_ORIGIN_RADIUS_SCALE = 1.04;
 var LASER_DOT_RADIUS_PX = 3.5;
+var LASER_ORBIT_SPEED = 0.9;
 var DEFAULT_CURSOR_POSITION = { x: 0.5, y: 0.5 };
 var LASER_COLOR = "#ff3b30";
 var LASER_COLOR_INTENSITY = 3.2;
@@ -61168,18 +61169,18 @@ function consumeEvent(event) {
 function isLaserToggleEvent(event) {
   return event.code === LASER_TOGGLE_CODE && !event.repeat && !event.metaKey && !event.ctrlKey && !event.altKey;
 }
-function forEachLaserOrigin({ centerX, centerY, radius }, callback) {
+function forEachLaserOrigin({ centerX, centerY, radius, rotation = 0 }, callback) {
   const emissionRadius = Math.max(radius * LASER_ORIGIN_RADIUS_SCALE, 1);
   for (let i = 0; i < LASER_LINE_COUNT; i += 1) {
-    const angle = i / LASER_LINE_COUNT * Math.PI * 2 - Math.PI / 2;
+    const angle = i / LASER_LINE_COUNT * Math.PI * 2 - Math.PI / 2 + rotation;
     const startX = centerX + Math.cos(angle) * emissionRadius;
     const startY = centerY + Math.sin(angle) * emissionRadius;
     callback({ index: i, startX, startY });
   }
 }
-function updateLaserPositions(positions, { centerX, centerY, radius, cursorX, cursorY }) {
+function updateLaserPositions(positions, { centerX, centerY, radius, rotation, cursorX, cursorY }) {
   forEachLaserOrigin(
-    { centerX, centerY, radius },
+    { centerX, centerY, radius, rotation },
     ({ index, startX, startY }) => {
       const offset = index * 6;
       positions[offset] = startX;
@@ -61416,7 +61417,9 @@ async function createWindowEffectsOverlay({ root }) {
   });
   window.addEventListener("keydown", handleKeyDown, true);
   window.addEventListener("keyup", handleKeyUp, true);
+  const startTime = performance.now();
   renderer.setAnimationLoop(() => {
+    const elapsed = (performance.now() - startTime) * 1e-3;
     const target = getTargetCandidate(root);
     if (target) {
       const { rect } = target;
@@ -61427,7 +61430,8 @@ async function createWindowEffectsOverlay({ root }) {
       const laserTarget = {
         centerX,
         centerY,
-        radius: outerRadius
+        radius: outerRadius,
+        rotation: elapsed * LASER_ORBIT_SPEED
       };
       laserDots.visible = true;
       updateLaserDotPositions(laserDots, laserDotTransform, laserTarget);
@@ -61435,7 +61439,11 @@ async function createWindowEffectsOverlay({ root }) {
         const cursorX = cursorClientX - overlayRect.left - overlayRect.width / 2;
         const cursorY = overlayRect.top + overlayRect.height / 2 - cursorClientY;
         laserSegments.visible = true;
-        updateLaserPositions(laserPositions, { ...laserTarget, cursorX, cursorY });
+        updateLaserPositions(laserPositions, {
+          ...laserTarget,
+          cursorX,
+          cursorY
+        });
         laserGeometry.attributes.position.needsUpdate = true;
       } else {
         laserSegments.visible = false;

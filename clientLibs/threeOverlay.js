@@ -12,6 +12,7 @@ const LASER_LINE_COUNT = 18;
 const LASER_TOGGLE_CODE = "Backquote";
 const LASER_ORIGIN_RADIUS_SCALE = 1.04;
 const LASER_DOT_RADIUS_PX = 3.5;
+const LASER_ORBIT_SPEED = 0.9;
 const DEFAULT_CURSOR_POSITION = { x: 0.5, y: 0.5 };
 const LASER_COLOR = "#ff3b30";
 const LASER_COLOR_INTENSITY = 3.2;
@@ -186,11 +187,14 @@ function isLaserToggleEvent(event) {
   );
 }
 
-function forEachLaserOrigin({ centerX, centerY, radius }, callback) {
+function forEachLaserOrigin(
+  { centerX, centerY, radius, rotation = 0 },
+  callback,
+) {
   const emissionRadius = Math.max(radius * LASER_ORIGIN_RADIUS_SCALE, 1);
 
   for (let i = 0; i < LASER_LINE_COUNT; i += 1) {
-    const angle = (i / LASER_LINE_COUNT) * Math.PI * 2 - Math.PI / 2;
+    const angle = (i / LASER_LINE_COUNT) * Math.PI * 2 - Math.PI / 2 + rotation;
     const startX = centerX + Math.cos(angle) * emissionRadius;
     const startY = centerY + Math.sin(angle) * emissionRadius;
     callback({ index: i, startX, startY });
@@ -199,10 +203,10 @@ function forEachLaserOrigin({ centerX, centerY, radius }, callback) {
 
 function updateLaserPositions(
   positions,
-  { centerX, centerY, radius, cursorX, cursorY },
+  { centerX, centerY, radius, rotation, cursorX, cursorY },
 ) {
   forEachLaserOrigin(
-    { centerX, centerY, radius },
+    { centerX, centerY, radius, rotation },
     ({ index, startX, startY }) => {
       const offset = index * 6;
 
@@ -484,7 +488,9 @@ export async function createWindowEffectsOverlay({ root }) {
   window.addEventListener("keydown", handleKeyDown, true);
   window.addEventListener("keyup", handleKeyUp, true);
 
+  const startTime = performance.now();
   renderer.setAnimationLoop(() => {
+    const elapsed = (performance.now() - startTime) * 0.001;
     const target = getTargetCandidate(root);
 
     if (target) {
@@ -501,6 +507,7 @@ export async function createWindowEffectsOverlay({ root }) {
         centerX,
         centerY,
         radius: outerRadius,
+        rotation: elapsed * LASER_ORBIT_SPEED,
       };
 
       laserDots.visible = true;
