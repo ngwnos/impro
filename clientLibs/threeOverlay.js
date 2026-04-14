@@ -178,11 +178,22 @@ function getTargetCandidate(root) {
 }
 
 function getBackgroundColor() {
-  const value = getComputedStyle(document.documentElement)
-    .getPropertyValue("--background-color")
-    .trim();
+  const candidates = [
+    document.querySelector(".page.page-visible"),
+    document.querySelector(".page:not(.page-hidden)"),
+    document.body,
+    document.documentElement,
+  ].filter(Boolean);
 
-  return value || "#ffffff";
+  for (const candidate of candidates) {
+    const value = getComputedStyle(candidate).backgroundColor.trim();
+
+    if (value && value !== "transparent" && value !== "rgba(0, 0, 0, 0)") {
+      return value;
+    }
+  }
+
+  return "#ffffff";
 }
 
 function isEditableEventTarget(target) {
