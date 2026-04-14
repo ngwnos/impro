@@ -61231,8 +61231,8 @@ async function createWindowEffectsOverlay({ root }) {
   });
   renderer._getFallback = null;
   renderer.outputColorSpace = SRGBColorSpace;
-  renderer.toneMapping = ReinhardToneMapping;
-  renderer.toneMappingExposure = 1.15;
+  renderer.toneMapping = NoToneMapping;
+  renderer.toneMappingExposure = 1;
   renderer.setPixelRatio(getPixelRatio());
   const canvas = renderer.domElement;
   canvas.className = "window-effects-overlay-canvas";
