@@ -61061,14 +61061,24 @@ var LASER_BLOOM_THRESHOLD = 0;
 var LASER_BLOOM_RAMP_SPEED = 8;
 var BURN_SPLAT_RADIUS_PX = 22;
 var BURN_SPLAT_SOFTNESS = 0.35;
-var BURN_PROGRESS_RATE = 0.34;
-var BURN_HEAT_DECAY_RATE = 3.8;
-var BURN_HEAT_SPREAD_FACTOR = 0.92;
-var BURN_HEAT_SPREAD_DIAGONAL_FACTOR = 0.8;
-var BURN_IGNITION_THRESHOLD_MIN = 0.18;
-var BURN_IGNITION_THRESHOLD_MAX = 0.42;
+var BURN_PROGRESS_RATE = 0.38;
+var BURN_SEED_PROGRESS = 0.055;
+var BURN_FRONT_DECAY_RATE = 3.2;
+var BURN_FRONT_SPREAD_FACTOR = 0.92;
+var BURN_FRONT_SPREAD_DIAGONAL_FACTOR = 0.78;
+var BURN_SPREAD_THRESHOLD_MIN = 0.12;
+var BURN_SPREAD_THRESHOLD_MAX = 0.34;
+var BURN_SPREAD_SEED_FACTOR = 0.88;
 var BURN_LOCK_THRESHOLD = 2e-3;
-var BURN_HEAT_ALPHA_SCALE = 0.72;
+var BURN_ACTIVE_THRESHOLD = 0.01;
+var BURN_FRONT_CUTOFF_START = 0.28;
+var BURN_FRONT_CUTOFF_END = 0.62;
+var BURN_COVERAGE_START = 0.01;
+var BURN_COVERAGE_END = 0.14;
+var BURN_TO_RED_START = 0.05;
+var BURN_TO_RED_END = 0.24;
+var BURN_TO_BACKGROUND_START = 0.36;
+var BURN_TO_BACKGROUND_END = 0.9;
 var BURN_HOT_COLOR = "#ffd36b";
 var BURN_EMBER_COLOR = "#c61a12";
 function getPixelRatio() {
@@ -61299,7 +61309,7 @@ async function createWindowEffectsOverlay({ root }) {
   const burnTextureUvNode = vec22(uv2().x, float2(1).sub(uv2().y));
   const burnPixelStepNode = uniform2(new Vector2(1, 1));
   const burnProgressDeltaNode = uniform2(0);
-  const burnHeatDecayFactorNode = uniform2(1);
+  const burnFrontDecayFactorNode = uniform2(1);
   const burnStateTextureNodes = [];
   const createBurnStateTextureNode = (offsetX = 0, offsetY = 0) => {
     const sampleUvNode = vec22(
@@ -61339,7 +61349,7 @@ async function createWindowEffectsOverlay({ root }) {
   burnUpdateMaterial.fragmentNode = Fn2(() => {
     const previousState = burnStateTextureNode.sample();
     const previousProgress = previousState.r.clamp(0, 1);
-    const previousHeat = previousState.g.clamp(0, 1);
+    const previousFront = previousState.g.clamp(0, 1);
     const untouchedMask = float2(1).sub(
       smoothstep3(
         BURN_LOCK_THRESHOLD,
@@ -61359,41 +61369,39 @@ async function createWindowEffectsOverlay({ root }) {
         )
       )
     );
-    const leftHeat = burnStateTextureLeftNode.sample().g.mul(
-      BURN_HEAT_SPREAD_FACTOR
+    const leftFront = burnStateTextureLeftNode.sample().g.mul(BURN_FRONT_SPREAD_FACTOR);
+    const rightFront = burnStateTextureRightNode.sample().g.mul(BURN_FRONT_SPREAD_FACTOR);
+    const upFront = burnStateTextureUpNode.sample().g.mul(BURN_FRONT_SPREAD_FACTOR);
+    const downFront = burnStateTextureDownNode.sample().g.mul(BURN_FRONT_SPREAD_FACTOR);
+    const upLeftFront = burnStateTextureUpLeftNode.sample().g.mul(BURN_FRONT_SPREAD_DIAGONAL_FACTOR);
+    const upRightFront = burnStateTextureUpRightNode.sample().g.mul(BURN_FRONT_SPREAD_DIAGONAL_FACTOR);
+    const downLeftFront = burnStateTextureDownLeftNode.sample().g.mul(BURN_FRONT_SPREAD_DIAGONAL_FACTOR);
+    const downRightFront = burnStateTextureDownRightNode.sample().g.mul(BURN_FRONT_SPREAD_DIAGONAL_FACTOR);
+    const spreadFront = leftFront.max(rightFront).max(upFront).max(downFront).max(upLeftFront).max(upRightFront).max(downLeftFront).max(downRightFront);
+    const spreadIgnition = smoothstep3(
+      BURN_SPREAD_THRESHOLD_MIN,
+      BURN_SPREAD_THRESHOLD_MAX,
+      spreadFront
+    ).mul(spreadFront).mul(BURN_SPREAD_SEED_FACTOR);
+    const ignition = untouchedMask.mul(splatMask.max(spreadIgnition)).clamp(0, 1);
+    const seededProgress = previousProgress.max(
+      ignition.mul(BURN_SEED_PROGRESS)
     );
-    const rightHeat = burnStateTextureRightNode.sample().g.mul(
-      BURN_HEAT_SPREAD_FACTOR
+    const activeBurnMask = smoothstep3(
+      BURN_ACTIVE_THRESHOLD,
+      BURN_ACTIVE_THRESHOLD * 2,
+      seededProgress
+    ).mul(float2(1).sub(smoothstep3(0.985, 1, seededProgress)));
+    const nextProgress = seededProgress.add(activeBurnMask.mul(burnProgressDeltaNode)).clamp(0, 1);
+    const frontCarrierMask = float2(1).sub(
+      smoothstep3(
+        BURN_FRONT_CUTOFF_START,
+        BURN_FRONT_CUTOFF_END,
+        previousProgress
+      )
     );
-    const upHeat = burnStateTextureUpNode.sample().g.mul(
-      BURN_HEAT_SPREAD_FACTOR
-    );
-    const downHeat = burnStateTextureDownNode.sample().g.mul(
-      BURN_HEAT_SPREAD_FACTOR
-    );
-    const upLeftHeat = burnStateTextureUpLeftNode.sample().g.mul(
-      BURN_HEAT_SPREAD_DIAGONAL_FACTOR
-    );
-    const upRightHeat = burnStateTextureUpRightNode.sample().g.mul(
-      BURN_HEAT_SPREAD_DIAGONAL_FACTOR
-    );
-    const downLeftHeat = burnStateTextureDownLeftNode.sample().g.mul(
-      BURN_HEAT_SPREAD_DIAGONAL_FACTOR
-    );
-    const downRightHeat = burnStateTextureDownRightNode.sample().g.mul(
-      BURN_HEAT_SPREAD_DIAGONAL_FACTOR
-    );
-    const spreadHeat = leftHeat.max(rightHeat).max(upHeat).max(downHeat).max(upLeftHeat).max(upRightHeat).max(downLeftHeat).max(downRightHeat);
-    const injectedHeat = untouchedMask.mul(splatMask.max(spreadHeat));
-    const nextHeat = previousHeat.mul(burnHeatDecayFactorNode).max(injectedHeat).clamp(0, 1);
-    const ignitionMask = smoothstep3(
-      BURN_IGNITION_THRESHOLD_MIN,
-      BURN_IGNITION_THRESHOLD_MAX,
-      nextHeat
-    );
-    const activeBurnMask = float2(1).sub(untouchedMask).max(ignitionMask);
-    const nextProgress = previousProgress.add(activeBurnMask.mul(burnProgressDeltaNode)).clamp(0, 1);
-    return vec42(nextProgress, nextHeat, 0, 1);
+    const nextFront = previousFront.mul(burnFrontDecayFactorNode).mul(frontCarrierMask).max(ignition).clamp(0, 1);
+    return vec42(nextProgress, nextFront, 0, 1);
   })();
   const burnQuad = new QuadMesh(burnUpdateMaterial);
   const renderPipeline = new RenderPipeline(renderer);
@@ -61409,17 +61417,22 @@ async function createWindowEffectsOverlay({ root }) {
   const sceneAlpha = scenePassColor.a.clamp(0, 1);
   const burnState = burnCompositeTextureNode;
   const burnProgress = burnState.r.clamp(0, 1);
-  const burnHeat = burnState.g.clamp(0, 1);
   const burnCoverage = smoothstep3(
-    0.02,
-    0.85,
-    burnProgress.add(burnHeat.mul(BURN_HEAT_ALPHA_SCALE)).clamp(0, 1)
+    BURN_COVERAGE_START,
+    BURN_COVERAGE_END,
+    burnProgress
   ).clamp(0, 1);
-  const burnHotMix = burnHeat.mul(float2(1).sub(smoothstep3(0.45, 1, burnProgress))).clamp(0, 1);
-  const burnToEmberMix = smoothstep3(0.12, 0.55, burnProgress).clamp(0, 1);
-  const burnToBackgroundMix = smoothstep3(0.55, 1, burnProgress).clamp(0, 1);
-  const burnHotColor = burnEmberColorNode.mul(float2(1).sub(burnHotMix)).add(burnHotColorNode.mul(burnHotMix));
-  const burnActiveColor = burnHotColor.mul(float2(1).sub(burnToEmberMix)).add(burnEmberColorNode.mul(burnToEmberMix));
+  const burnToEmberMix = smoothstep3(
+    BURN_TO_RED_START,
+    BURN_TO_RED_END,
+    burnProgress
+  ).clamp(0, 1);
+  const burnToBackgroundMix = smoothstep3(
+    BURN_TO_BACKGROUND_START,
+    BURN_TO_BACKGROUND_END,
+    burnProgress
+  ).clamp(0, 1);
+  const burnActiveColor = burnHotColorNode.mul(float2(1).sub(burnToEmberMix)).add(burnEmberColorNode.mul(burnToEmberMix));
   const burnColor = burnActiveColor.mul(float2(1).sub(burnToBackgroundMix)).add(burnBackgroundColorNode.mul(burnToBackgroundMix));
   const sceneBloomAlpha = sceneAlpha.max(bloomAlpha).clamp(0, 1);
   const sceneBloomPremultipliedColor = scenePassColor.rgb.mul(sceneAlpha).add(bloomPass.rgb.mul(bloomAlpha));
@@ -61486,7 +61499,9 @@ async function createWindowEffectsOverlay({ root }) {
     );
     burnRadiusNode.value = BURN_SPLAT_RADIUS_PX / overlayRect.height;
     burnProgressDeltaNode.value = BURN_PROGRESS_RATE * deltaTime3;
-    burnHeatDecayFactorNode.value = Math.exp(-BURN_HEAT_DECAY_RATE * deltaTime3);
+    burnFrontDecayFactorNode.value = Math.exp(
+      -BURN_FRONT_DECAY_RATE * deltaTime3
+    );
     burnSplatEnabledNode.value = shouldSplat ? 1 : 0;
     burnCursorUvNode.value.set(
       (cursorClientX - overlayRect.left) / overlayRect.width,
