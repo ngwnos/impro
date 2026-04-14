@@ -1,6 +1,9 @@
-import "dotenv/config";
 import { execSync } from "child_process";
+import dotenv from "dotenv";
 import { OAUTH_SCOPES } from "./oauthScopes.js";
+
+dotenv.config();
+dotenv.config({ path: ".env.local", override: true });
 
 const isProductionBuild = process.env.NODE_ENV === "production";
 const defaultHostName = isProductionBuild
@@ -16,6 +19,7 @@ export default {
     .trim(),
   gitCommit: () => execSync("git rev-parse --short=8 HEAD").toString().trim(),
   hostName: process.env.HOST_NAME ?? defaultHostName,
+  oauthOrigin: process.env.OAUTH_ORIGIN ?? "",
   environment: process.env.ENVIRONMENT ?? defaultEnvironment,
   oauthScopes: OAUTH_SCOPES,
 };

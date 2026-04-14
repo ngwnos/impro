@@ -167,6 +167,9 @@ export class OAuth {
   }
 
   getOauthOrigin() {
+    if (window.env?.oauthOrigin) {
+      return window.env.oauthOrigin;
+    }
     if (isDev()) {
       return `https://${window.env.hostName}`;
     }
