@@ -1267,12 +1267,14 @@ body.scroll-locked header {
   outline-offset: -2px;
 }
 
-@media (min-width: 1200px) {
-  .sidebar-compose-button {
+@media (min-width: 800px) {
+  .sidebar-tools {
     display: flex;
   }
+}
 
-  .sidebar-tools {
+@media (min-width: 1200px) {
+  .sidebar-compose-button {
     display: flex;
   }
 }
