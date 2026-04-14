@@ -61277,10 +61277,14 @@ async function createWindowEffectsOverlay({ root }) {
   burnRenderTargetB.texture.generateMipmaps = false;
   let burnReadRenderTarget = burnRenderTargetA;
   let burnWriteRenderTarget = burnRenderTargetB;
-  const burnMaskTextureNode = texture2(burnReadRenderTarget.texture, screenUV2);
+  const burnTextureUvNode = vec22(uv2().x, float2(1).sub(uv2().y));
+  const burnMaskTextureNode = texture2(
+    burnReadRenderTarget.texture,
+    burnTextureUvNode
+  );
   const burnAccumulationTextureNode = texture2(
     burnReadRenderTarget.texture,
-    uv2()
+    burnTextureUvNode
   );
   const burnCursorUvNode = uniform2(new Vector2(0.5, 0.5));
   const burnAspectNode = uniform2(1);
@@ -61288,15 +61292,15 @@ async function createWindowEffectsOverlay({ root }) {
   const burnDepositNode = uniform2(0);
   const burnDecayNode = uniform2(1);
   const burnSplatEnabledNode = uniform2(0);
-  const burnBackgroundColorNode = uniform2(new Color(getBackgroundColor()));
+  const burnBackgroundColorNode = uniform2(
+    new Color(getBackgroundColor())
+  );
   let currentBackgroundColorValue = getBackgroundColor();
   let burnTargetsNeedClear = true;
   const burnUpdateMaterial = new NodeMaterial();
   burnUpdateMaterial.name = "LaserBurnUpdate";
   burnUpdateMaterial.fragmentNode = Fn2(() => {
-    const previousMask = burnAccumulationTextureNode.sample().r.mul(
-      burnDecayNode
-    );
+    const previousMask = burnAccumulationTextureNode.sample().r.mul(burnDecayNode);
     const delta = uv2().sub(burnCursorUvNode);
     const correctedDelta = vec22(delta.x.mul(burnAspectNode), delta.y);
     const distanceToCursor = length2(correctedDelta);

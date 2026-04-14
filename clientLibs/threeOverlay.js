@@ -7,7 +7,6 @@ import {
   Fn,
   luminance,
   max,
-  screenUV,
   smoothstep,
   texture as textureNode,
   uniform,
@@ -334,13 +333,14 @@ export async function createWindowEffectsOverlay({ root }) {
 
   let burnReadRenderTarget = burnRenderTargetA;
   let burnWriteRenderTarget = burnRenderTargetB;
+  const burnTextureUvNode = vec2(uv().x, float(1).sub(uv().y));
   const burnMaskTextureNode = textureNode(
     burnReadRenderTarget.texture,
-    screenUV,
+    burnTextureUvNode,
   );
   const burnAccumulationTextureNode = textureNode(
     burnReadRenderTarget.texture,
-    uv(),
+    burnTextureUvNode,
   );
   const burnCursorUvNode = uniform(new THREE.Vector2(0.5, 0.5));
   const burnAspectNode = uniform(1);
