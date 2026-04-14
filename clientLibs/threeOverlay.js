@@ -14,6 +14,17 @@ function getPixelRatio() {
   return Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
 }
 
+function getOverlayRect(root) {
+  const rect = root.getBoundingClientRect();
+
+  return {
+    left: rect.left,
+    top: rect.top,
+    width: Math.max(rect.width, 1),
+    height: Math.max(rect.height, 1),
+  };
+}
+
 function getTargetElement() {
   return document.querySelector(AVATAR_SELECTOR);
 }
@@ -87,8 +98,7 @@ export async function createWindowEffectsOverlay({ root }) {
   scene.add(ringGroup);
 
   const resize = () => {
-    const width = Math.max(window.innerWidth || 0, 1);
-    const height = Math.max(window.innerHeight || 0, 1);
+    const { width, height } = getOverlayRect(root);
     renderer.setPixelRatio(getPixelRatio());
     renderer.setSize(width, height, false);
     camera.left = -width / 2;
@@ -108,19 +118,22 @@ export async function createWindowEffectsOverlay({ root }) {
 
     if (target) {
       const rect = target.getBoundingClientRect();
-      const width = Math.max(window.innerWidth || 0, 1);
-      const height = Math.max(window.innerHeight || 0, 1);
+      const overlayRect = getOverlayRect(root);
       const targetIsVisible =
         rect.width > 0 &&
         rect.height > 0 &&
-        rect.bottom >= 0 &&
-        rect.right >= 0 &&
-        rect.top <= height &&
-        rect.left <= width;
+        rect.bottom >= overlayRect.top &&
+        rect.right >= overlayRect.left &&
+        rect.top <= overlayRect.top + overlayRect.height &&
+        rect.left <= overlayRect.left + overlayRect.width;
 
       if (targetIsVisible) {
-        const centerX = rect.left + rect.width / 2 - width / 2;
-        const centerY = height / 2 - (rect.top + rect.height / 2);
+        const centerX =
+          rect.left + rect.width / 2 - overlayRect.left - overlayRect.width / 2;
+        const centerY =
+          overlayRect.top +
+          overlayRect.height / 2 -
+          (rect.top + rect.height / 2);
         const outerRadius =
           Math.max(rect.width, rect.height) / 2 +
           Math.max(TARGET_PADDING_PX, rect.width * TARGET_PADDING_RATIO);
