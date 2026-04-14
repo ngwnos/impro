@@ -55666,6 +55666,10 @@ function getTargetCandidate(root) {
   const overlayRect = getOverlayRect(root);
   const containers = [...document.querySelectorAll(SIDEBAR_AVATAR_SELECTOR)];
   const candidates = containers.map((container) => {
+    const page = container.closest(".page");
+    if (page && !page.classList.contains("page-visible")) {
+      return null;
+    }
     const visualTarget = container.querySelector(VISUAL_AVATAR_SELECTOR) || container;
     if (!isElementVisible(container) || !isElementVisible(visualTarget)) {
       return null;
