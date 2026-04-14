@@ -1,4 +1,6 @@
 import * as THREE from "three/webgpu";
+import { pass } from "three/tsl";
+import { bloom } from "three/addons/tsl/display/BloomNode.js";
 
 const MAX_PIXEL_RATIO = 2;
 const SIDEBAR_AVATAR_SELECTOR = ".sidebar-profile-avatar";
@@ -14,6 +16,11 @@ const LASER_LINE_COUNT = 18;
 const LASER_TOGGLE_CODE = "Backquote";
 const LASER_ORIGIN_RADIUS_SCALE = 1.04;
 const DEFAULT_CURSOR_POSITION = { x: 0.5, y: 0.5 };
+const LASER_COLOR = "#ff3b30";
+const LASER_COLOR_INTENSITY = 3.2;
+const LASER_BLOOM_STRENGTH = 1.6;
+const LASER_BLOOM_RADIUS = 0.28;
+const LASER_BLOOM_THRESHOLD = 0.55;
 
 function getPixelRatio() {
   return Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
@@ -199,6 +206,8 @@ export async function createWindowEffectsOverlay({ root }) {
   });
   renderer._getFallback = null;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ReinhardToneMapping;
+  renderer.toneMappingExposure = 1.15;
   renderer.setPixelRatio(getPixelRatio());
   const canvas = renderer.domElement;
   canvas.className = "window-effects-overlay-canvas";
@@ -212,6 +221,9 @@ export async function createWindowEffectsOverlay({ root }) {
 
   const baseColor = new THREE.Color(getHighlightColor());
   const accentColor = baseColor.clone().offsetHSL(0.05, 0.1, 0.12);
+  const laserColor = new THREE.Color(LASER_COLOR).multiplyScalar(
+    LASER_COLOR_INTENSITY,
+  );
 
   const baseRingGeometry = new THREE.RingGeometry(
     BASE_RING_INNER_RADIUS,
@@ -255,13 +267,24 @@ export async function createWindowEffectsOverlay({ root }) {
     new THREE.BufferAttribute(laserPositions, 3),
   );
   const laserMaterial = new THREE.LineBasicMaterial({
-    color: accentColor,
+    color: laserColor,
     transparent: true,
-    opacity: 0.72,
+    opacity: 0.92,
   });
   const laserSegments = new THREE.LineSegments(laserGeometry, laserMaterial);
   laserSegments.visible = false;
   scene.add(laserSegments);
+
+  const renderPipeline = new THREE.RenderPipeline(renderer);
+  const scenePass = pass(scene, camera);
+  const scenePassColor = scenePass.getTextureNode("output");
+  const bloomPass = bloom(
+    scenePassColor,
+    LASER_BLOOM_STRENGTH,
+    LASER_BLOOM_RADIUS,
+    LASER_BLOOM_THRESHOLD,
+  );
+  renderPipeline.outputNode = scenePassColor.add(bloomPass);
 
   let laserModeEnabled = false;
   let cursorClientX = getViewportWidth() * DEFAULT_CURSOR_POSITION.x;
@@ -356,7 +379,7 @@ export async function createWindowEffectsOverlay({ root }) {
       laserSegments.visible = false;
     }
 
-    renderer.render(scene, camera);
+    renderPipeline.render();
   });
 
   return {
