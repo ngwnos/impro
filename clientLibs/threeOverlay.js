@@ -33,27 +33,8 @@ const LASER_BLOOM_RADIUS = 0.28;
 const LASER_BLOOM_THRESHOLD = 0;
 const LASER_BLOOM_RAMP_SPEED = 8;
 const BURN_SPLAT_RADIUS_PX = 22;
+const BURN_SPLAT_DEPOSIT_RATE = 8;
 const BURN_SPLAT_SOFTNESS = 0.35;
-const BURN_PROGRESS_RATE = 0.38;
-const BURN_SEED_PROGRESS = 0.055;
-const BURN_FRONT_DECAY_RATE = 3.2;
-const BURN_FRONT_SPREAD_FACTOR = 0.92;
-const BURN_FRONT_SPREAD_DIAGONAL_FACTOR = 0.78;
-const BURN_SPREAD_THRESHOLD_MIN = 0.12;
-const BURN_SPREAD_THRESHOLD_MAX = 0.34;
-const BURN_SPREAD_SEED_FACTOR = 0.88;
-const BURN_LOCK_THRESHOLD = 0.002;
-const BURN_ACTIVE_THRESHOLD = 0.01;
-const BURN_FRONT_CUTOFF_START = 0.28;
-const BURN_FRONT_CUTOFF_END = 0.62;
-const BURN_COVERAGE_START = 0.01;
-const BURN_COVERAGE_END = 0.14;
-const BURN_TO_RED_START = 0.05;
-const BURN_TO_RED_END = 0.24;
-const BURN_TO_BACKGROUND_START = 0.36;
-const BURN_TO_BACKGROUND_END = 0.9;
-const BURN_HOT_COLOR = "#ffd36b";
-const BURN_EMBER_COLOR = "#c61a12";
 
 function getPixelRatio() {
   return Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
@@ -362,38 +343,19 @@ export async function createWindowEffectsOverlay({ root }) {
   let burnReadRenderTarget = burnRenderTargetA;
   let burnWriteRenderTarget = burnRenderTargetB;
   const burnTextureUvNode = vec2(uv().x, float(1).sub(uv().y));
-  const burnPixelStepNode = uniform(new THREE.Vector2(1, 1));
-  const burnProgressDeltaNode = uniform(0);
-  const burnFrontDecayFactorNode = uniform(1);
-  const burnStateTextureNodes = [];
-  const createBurnStateTextureNode = (offsetX = 0, offsetY = 0) => {
-    const sampleUvNode = vec2(
-      burnTextureUvNode.x.add(burnPixelStepNode.x.mul(offsetX)),
-      burnTextureUvNode.y.add(burnPixelStepNode.y.mul(offsetY)),
-    );
-    const node = textureNode(burnReadRenderTarget.texture, sampleUvNode);
-    burnStateTextureNodes.push(node);
-    return node;
-  };
-  const burnStateTextureNode = createBurnStateTextureNode();
-  const burnStateTextureLeftNode = createBurnStateTextureNode(-1, 0);
-  const burnStateTextureRightNode = createBurnStateTextureNode(1, 0);
-  const burnStateTextureUpNode = createBurnStateTextureNode(0, 1);
-  const burnStateTextureDownNode = createBurnStateTextureNode(0, -1);
-  const burnStateTextureUpLeftNode = createBurnStateTextureNode(-1, 1);
-  const burnStateTextureUpRightNode = createBurnStateTextureNode(1, 1);
-  const burnStateTextureDownLeftNode = createBurnStateTextureNode(-1, -1);
-  const burnStateTextureDownRightNode = createBurnStateTextureNode(1, -1);
-  const burnCompositeTextureNode = textureNode(
+  const burnMaskTextureNode = textureNode(
+    burnReadRenderTarget.texture,
+    burnTextureUvNode,
+  );
+  const burnAccumulationTextureNode = textureNode(
     burnReadRenderTarget.texture,
     burnTextureUvNode,
   );
   const burnCursorUvNode = uniform(new THREE.Vector2(0.5, 0.5));
   const burnAspectNode = uniform(1);
   const burnRadiusNode = uniform(0.02);
+  const burnDepositNode = uniform(0);
   const burnSplatEnabledNode = uniform(0);
-  const burnHotColorNode = uniform(new THREE.Color(BURN_HOT_COLOR));
-  const burnEmberColorNode = uniform(new THREE.Color(BURN_EMBER_COLOR));
   const burnBackgroundColorNode = uniform(
     new THREE.Color(getBackgroundColor()),
   );
@@ -403,16 +365,7 @@ export async function createWindowEffectsOverlay({ root }) {
   const burnUpdateMaterial = new THREE.NodeMaterial();
   burnUpdateMaterial.name = "LaserBurnUpdate";
   burnUpdateMaterial.fragmentNode = Fn(() => {
-    const previousState = burnStateTextureNode.sample();
-    const previousProgress = previousState.r.clamp(0, 1);
-    const previousFront = previousState.g.clamp(0, 1);
-    const untouchedMask = float(1).sub(
-      smoothstep(
-        BURN_LOCK_THRESHOLD,
-        BURN_LOCK_THRESHOLD * 2,
-        previousProgress,
-      ),
-    );
+    const previousMask = burnAccumulationTextureNode.sample().r;
     const delta = uv().sub(burnCursorUvNode);
     const correctedDelta = vec2(delta.x.mul(burnAspectNode), delta.y);
     const distanceToCursor = length(correctedDelta);
@@ -425,73 +378,11 @@ export async function createWindowEffectsOverlay({ root }) {
         ),
       ),
     );
-    const leftFront = burnStateTextureLeftNode
-      .sample()
-      .g.mul(BURN_FRONT_SPREAD_FACTOR);
-    const rightFront = burnStateTextureRightNode
-      .sample()
-      .g.mul(BURN_FRONT_SPREAD_FACTOR);
-    const upFront = burnStateTextureUpNode
-      .sample()
-      .g.mul(BURN_FRONT_SPREAD_FACTOR);
-    const downFront = burnStateTextureDownNode
-      .sample()
-      .g.mul(BURN_FRONT_SPREAD_FACTOR);
-    const upLeftFront = burnStateTextureUpLeftNode
-      .sample()
-      .g.mul(BURN_FRONT_SPREAD_DIAGONAL_FACTOR);
-    const upRightFront = burnStateTextureUpRightNode
-      .sample()
-      .g.mul(BURN_FRONT_SPREAD_DIAGONAL_FACTOR);
-    const downLeftFront = burnStateTextureDownLeftNode
-      .sample()
-      .g.mul(BURN_FRONT_SPREAD_DIAGONAL_FACTOR);
-    const downRightFront = burnStateTextureDownRightNode
-      .sample()
-      .g.mul(BURN_FRONT_SPREAD_DIAGONAL_FACTOR);
-    const spreadFront = leftFront
-      .max(rightFront)
-      .max(upFront)
-      .max(downFront)
-      .max(upLeftFront)
-      .max(upRightFront)
-      .max(downLeftFront)
-      .max(downRightFront);
-    const spreadIgnition = smoothstep(
-      BURN_SPREAD_THRESHOLD_MIN,
-      BURN_SPREAD_THRESHOLD_MAX,
-      spreadFront,
-    )
-      .mul(spreadFront)
-      .mul(BURN_SPREAD_SEED_FACTOR);
-    const ignition = untouchedMask
-      .mul(splatMask.max(spreadIgnition))
-      .clamp(0, 1);
-    const seededProgress = previousProgress.max(
-      ignition.mul(BURN_SEED_PROGRESS),
-    );
-    const activeBurnMask = smoothstep(
-      BURN_ACTIVE_THRESHOLD,
-      BURN_ACTIVE_THRESHOLD * 2,
-      seededProgress,
-    ).mul(float(1).sub(smoothstep(0.985, 1, seededProgress)));
-    const nextProgress = seededProgress
-      .add(activeBurnMask.mul(burnProgressDeltaNode))
-      .clamp(0, 1);
-    const frontCarrierMask = float(1).sub(
-      smoothstep(
-        BURN_FRONT_CUTOFF_START,
-        BURN_FRONT_CUTOFF_END,
-        previousProgress,
-      ),
-    );
-    const nextFront = previousFront
-      .mul(burnFrontDecayFactorNode)
-      .mul(frontCarrierMask)
-      .max(ignition)
+    const nextMask = previousMask
+      .add(splatMask.mul(burnDepositNode))
       .clamp(0, 1);
 
-    return vec4(nextProgress, nextFront, 0, 1);
+    return vec4(nextMask, nextMask, nextMask, nextMask);
   })();
 
   const burnQuad = new THREE.QuadMesh(burnUpdateMaterial);
@@ -507,37 +398,15 @@ export async function createWindowEffectsOverlay({ root }) {
   );
   const bloomAlpha = luminance(bloomPass.rgb).mul(0.6).clamp(0, 1);
   const sceneAlpha = scenePassColor.a.clamp(0, 1);
-  const burnState = burnCompositeTextureNode;
-  const burnProgress = burnState.r.clamp(0, 1);
-  const burnCoverage = smoothstep(
-    BURN_COVERAGE_START,
-    BURN_COVERAGE_END,
-    burnProgress,
-  ).clamp(0, 1);
-  const burnToEmberMix = smoothstep(
-    BURN_TO_RED_START,
-    BURN_TO_RED_END,
-    burnProgress,
-  ).clamp(0, 1);
-  const burnToBackgroundMix = smoothstep(
-    BURN_TO_BACKGROUND_START,
-    BURN_TO_BACKGROUND_END,
-    burnProgress,
-  ).clamp(0, 1);
-  const burnActiveColor = burnHotColorNode
-    .mul(float(1).sub(burnToEmberMix))
-    .add(burnEmberColorNode.mul(burnToEmberMix));
-  const burnColor = burnActiveColor
-    .mul(float(1).sub(burnToBackgroundMix))
-    .add(burnBackgroundColorNode.mul(burnToBackgroundMix));
+  const burnMask = burnMaskTextureNode.r.clamp(0, 1);
   const sceneBloomAlpha = sceneAlpha.max(bloomAlpha).clamp(0, 1);
   const sceneBloomPremultipliedColor = scenePassColor.rgb
     .mul(sceneAlpha)
     .add(bloomPass.rgb.mul(bloomAlpha));
-  const burnAlpha = burnCoverage.mul(sceneBloomAlpha.oneMinus()).clamp(0, 1);
+  const burnAlpha = burnMask.mul(sceneBloomAlpha.oneMinus()).clamp(0, 1);
   const compositeAlpha = sceneBloomAlpha.add(burnAlpha).clamp(0, 1);
   const compositePremultipliedColor = sceneBloomPremultipliedColor.add(
-    burnColor.mul(burnAlpha),
+    burnBackgroundColorNode.mul(burnAlpha),
   );
   renderPipeline.outputNode = vec4(compositePremultipliedColor, compositeAlpha);
 
@@ -602,15 +471,8 @@ export async function createWindowEffectsOverlay({ root }) {
     }
 
     burnAspectNode.value = overlayRect.width / overlayRect.height;
-    burnPixelStepNode.value.set(
-      1 / burnReadRenderTarget.width,
-      1 / burnReadRenderTarget.height,
-    );
     burnRadiusNode.value = BURN_SPLAT_RADIUS_PX / overlayRect.height;
-    burnProgressDeltaNode.value = BURN_PROGRESS_RATE * deltaTime;
-    burnFrontDecayFactorNode.value = Math.exp(
-      -BURN_FRONT_DECAY_RATE * deltaTime,
-    );
+    burnDepositNode.value = BURN_SPLAT_DEPOSIT_RATE * deltaTime;
     burnSplatEnabledNode.value = shouldSplat ? 1 : 0;
     burnCursorUvNode.value.set(
       (cursorClientX - overlayRect.left) / overlayRect.width,
@@ -627,10 +489,8 @@ export async function createWindowEffectsOverlay({ root }) {
       burnWriteRenderTarget,
       burnReadRenderTarget,
     ];
-    burnCompositeTextureNode.value = burnReadRenderTarget.texture;
-    for (const textureNodeInstance of burnStateTextureNodes) {
-      textureNodeInstance.value = burnReadRenderTarget.texture;
-    }
+    burnMaskTextureNode.value = burnReadRenderTarget.texture;
+    burnAccumulationTextureNode.value = burnReadRenderTarget.texture;
   };
 
   const setLaserModeEnabled = (enabled) => {
