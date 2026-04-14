@@ -80,20 +80,27 @@ function isElementVisible(element) {
   return true;
 }
 
-function elementMatchesHitTest(element, x, y) {
-  const hit = document.elementFromPoint(x, y);
-  if (!hit) {
+function elementMatchesHitTest(element, x, y, ignoredRoot = null) {
+  const rawHits =
+    typeof document.elementsFromPoint === "function"
+      ? document.elementsFromPoint(x, y)
+      : [document.elementFromPoint(x, y)].filter(Boolean);
+  const hits = ignoredRoot
+    ? rawHits.filter(
+        (hit) =>
+          !(hit instanceof Element) ||
+          (hit !== ignoredRoot && !ignoredRoot.contains(hit)),
+      )
+    : rawHits;
+  const hit = hits[0];
+  if (!(hit instanceof Element)) {
     return false;
   }
 
-  return (
-    hit === element ||
-    element.contains(hit) ||
-    (hit instanceof Element && hit.contains(element))
-  );
+  return hit === element || element.contains(hit) || hit.contains(element);
 }
 
-function getHitTestScore(element, rect) {
+function getHitTestScore(element, rect, ignoredRoot = null) {
   const insetX = Math.min(Math.max(rect.width * 0.2, 2), rect.width / 2);
   const insetY = Math.min(Math.max(rect.height * 0.2, 2), rect.height / 2);
   const points = [
@@ -108,7 +115,7 @@ function getHitTestScore(element, rect) {
   for (const [rawX, rawY] of points) {
     const x = Math.min(Math.max(rawX, 0), getViewportWidth() - 1);
     const y = Math.min(Math.max(rawY, 0), getViewportHeight() - 1);
-    if (elementMatchesHitTest(element, x, y)) {
+    if (elementMatchesHitTest(element, x, y, ignoredRoot)) {
       score += 1;
     }
   }
@@ -137,7 +144,7 @@ function getTargetCandidate(root) {
         return null;
       }
 
-      const hitScore = getHitTestScore(visualTarget, rect);
+      const hitScore = getHitTestScore(visualTarget, rect, root);
       if (hitScore === 0) {
         return null;
       }
