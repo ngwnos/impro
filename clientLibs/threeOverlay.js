@@ -352,6 +352,7 @@ export async function createWindowEffectsOverlay({ root }) {
     burnTextureUvNode,
   );
   const burnCursorUvNode = uniform(new THREE.Vector2(0.5, 0.5));
+  const burnScrollUvDeltaNode = uniform(new THREE.Vector2(0, 0));
   const burnAspectNode = uniform(1);
   const burnRadiusNode = uniform(0.02);
   const burnDepositNode = uniform(0);
@@ -365,7 +366,23 @@ export async function createWindowEffectsOverlay({ root }) {
   const burnUpdateMaterial = new THREE.NodeMaterial();
   burnUpdateMaterial.name = "LaserBurnUpdate";
   burnUpdateMaterial.fragmentNode = Fn(() => {
-    const previousMask = burnAccumulationTextureNode.sample().r;
+    const previousBurnUv = vec2(
+      uv().x.add(burnScrollUvDeltaNode.x),
+      uv().y.add(burnScrollUvDeltaNode.y),
+    );
+    const previousBurnTextureUv = vec2(
+      previousBurnUv.x,
+      float(1).sub(previousBurnUv.y),
+    );
+    const previousBurnInBounds = previousBurnUv.x
+      .greaterThanEqual(0)
+      .and(previousBurnUv.x.lessThanEqual(1))
+      .and(previousBurnUv.y.greaterThanEqual(0))
+      .and(previousBurnUv.y.lessThanEqual(1));
+    const previousMask = previousBurnInBounds.select(
+      burnAccumulationTextureNode.sample(previousBurnTextureUv).r,
+      float(0),
+    );
     const delta = uv().sub(burnCursorUvNode);
     const correctedDelta = vec2(delta.x.mul(burnAspectNode), delta.y);
     const distanceToCursor = length(correctedDelta);
@@ -414,6 +431,8 @@ export async function createWindowEffectsOverlay({ root }) {
   let laserPointerActive = false;
   let cursorClientX = getViewportWidth() * DEFAULT_CURSOR_POSITION.x;
   let cursorClientY = getViewportHeight() * DEFAULT_CURSOR_POSITION.y;
+  let previousScrollX = window.scrollX;
+  let previousScrollY = window.scrollY;
   let previousFocusedElement = null;
   let currentBloomStrength = 0;
   bloomPass.strength.value = currentBloomStrength;
@@ -470,6 +489,15 @@ export async function createWindowEffectsOverlay({ root }) {
       burnTargetsNeedClear = false;
     }
 
+    const scrollDeltaX = window.scrollX - previousScrollX;
+    const scrollDeltaY = window.scrollY - previousScrollY;
+    previousScrollX = window.scrollX;
+    previousScrollY = window.scrollY;
+
+    burnScrollUvDeltaNode.value.set(
+      scrollDeltaX / overlayRect.width,
+      -scrollDeltaY / overlayRect.height,
+    );
     burnAspectNode.value = overlayRect.width / overlayRect.height;
     burnRadiusNode.value = BURN_SPLAT_RADIUS_PX / overlayRect.height;
     burnDepositNode.value = BURN_SPLAT_DEPOSIT_RATE * deltaTime;
