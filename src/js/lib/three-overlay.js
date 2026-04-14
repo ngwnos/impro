@@ -60978,6 +60978,14 @@ function isEditableEventTarget(target) {
     )
   );
 }
+function consumeEvent(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+}
+function isLaserToggleEvent(event) {
+  return event.code === LASER_TOGGLE_CODE && !event.repeat && !event.metaKey && !event.ctrlKey && !event.altKey;
+}
 function updateLaserPositions(positions, { centerX, centerY, radius, cursorX, cursorY }) {
   const emissionRadius = Math.max(radius * LASER_ORIGIN_RADIUS_SCALE, 1);
   for (let i = 0; i < LASER_LINE_COUNT; i += 1) {
@@ -61009,6 +61017,7 @@ async function createWindowEffectsOverlay({ root }) {
   const canvas = renderer.domElement;
   canvas.className = "window-effects-overlay-canvas";
   canvas.setAttribute("aria-hidden", "true");
+  canvas.tabIndex = -1;
   root.replaceChildren(canvas);
   renderer.setClearColor(0, 0);
   const scene = new Scene();
@@ -61081,8 +61090,10 @@ async function createWindowEffectsOverlay({ root }) {
     outputAlpha
   );
   let laserModeEnabled = false;
+  let laserPointerActive = false;
   let cursorClientX = getViewportWidth() * DEFAULT_CURSOR_POSITION.x;
   let cursorClientY = getViewportHeight() * DEFAULT_CURSOR_POSITION.y;
+  let previousFocusedElement = null;
   const resize = () => {
     const { width, height } = getOverlayRect(root);
     renderer.setPixelRatio(getPixelRatio());
@@ -61099,20 +61110,131 @@ async function createWindowEffectsOverlay({ root }) {
     cursorClientX = event.clientX;
     cursorClientY = event.clientY;
   };
-  const handleKeyDown = (event) => {
-    if (event.code !== LASER_TOGGLE_CODE || event.repeat || event.metaKey || event.ctrlKey || event.altKey || isEditableEventTarget(event.target)) {
+  const setLaserModeEnabled = (enabled) => {
+    if (laserModeEnabled === enabled) {
       return;
     }
-    laserModeEnabled = !laserModeEnabled;
-    event.preventDefault();
+    laserModeEnabled = enabled;
+    laserPointerActive = false;
+    laserSegments.visible = false;
+    root.style.pointerEvents = enabled ? "auto" : "none";
+    root.style.touchAction = enabled ? "none" : "";
+    canvas.style.pointerEvents = enabled ? "auto" : "none";
+    canvas.style.touchAction = enabled ? "none" : "";
+    if (enabled) {
+      previousFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      previousFocusedElement?.blur();
+      canvas.tabIndex = 0;
+      canvas.focus({ preventScroll: true });
+      return;
+    }
+    canvas.tabIndex = -1;
+    if (previousFocusedElement && previousFocusedElement !== canvas && previousFocusedElement.isConnected) {
+      previousFocusedElement.focus({ preventScroll: true });
+    }
+    previousFocusedElement = null;
   };
-  window.addEventListener("pointermove", updateCursorPosition, {
-    passive: true
+  const handlePointerMove = (event) => {
+    updateCursorPosition(event);
+    if (!laserModeEnabled) {
+      return;
+    }
+    laserPointerActive = event.buttons !== 0;
+    consumeEvent(event);
+  };
+  const handlePointerDown = (event) => {
+    updateCursorPosition(event);
+    if (!laserModeEnabled) {
+      return;
+    }
+    laserPointerActive = event.buttons !== 0;
+    try {
+      canvas.setPointerCapture(event.pointerId);
+    } catch {
+    }
+    consumeEvent(event);
+  };
+  const handlePointerUp = (event) => {
+    updateCursorPosition(event);
+    if (!laserModeEnabled) {
+      return;
+    }
+    laserPointerActive = false;
+    if (canvas.hasPointerCapture(event.pointerId)) {
+      canvas.releasePointerCapture(event.pointerId);
+    }
+    consumeEvent(event);
+  };
+  const handleWheel = (event) => {
+    if (!laserModeEnabled) {
+      return;
+    }
+    consumeEvent(event);
+  };
+  const handleClickLikeEvent = (event) => {
+    if (!laserModeEnabled) {
+      return;
+    }
+    consumeEvent(event);
+  };
+  const handleKeyDown = (event) => {
+    if (laserModeEnabled) {
+      if (isLaserToggleEvent(event)) {
+        setLaserModeEnabled(false);
+      }
+      consumeEvent(event);
+      return;
+    }
+    if (isEditableEventTarget(event.target) || !isLaserToggleEvent(event)) {
+      return;
+    }
+    setLaserModeEnabled(true);
+    consumeEvent(event);
+  };
+  const handleKeyUp = (event) => {
+    if (!laserModeEnabled) {
+      return;
+    }
+    consumeEvent(event);
+  };
+  window.addEventListener("pointermove", handlePointerMove, {
+    capture: true,
+    passive: false
   });
-  window.addEventListener("pointerdown", updateCursorPosition, {
-    passive: true
+  window.addEventListener("pointerdown", handlePointerDown, {
+    capture: true,
+    passive: false
   });
-  window.addEventListener("keydown", handleKeyDown);
+  window.addEventListener("pointerup", handlePointerUp, {
+    capture: true,
+    passive: false
+  });
+  window.addEventListener("pointercancel", handlePointerUp, {
+    capture: true,
+    passive: false
+  });
+  window.addEventListener("wheel", handleWheel, {
+    capture: true,
+    passive: false
+  });
+  window.addEventListener("click", handleClickLikeEvent, {
+    capture: true,
+    passive: false
+  });
+  window.addEventListener("dblclick", handleClickLikeEvent, {
+    capture: true,
+    passive: false
+  });
+  window.addEventListener("auxclick", handleClickLikeEvent, {
+    capture: true,
+    passive: false
+  });
+  window.addEventListener("contextmenu", handleClickLikeEvent, {
+    capture: true,
+    passive: false
+  });
+  window.addEventListener("keydown", handleKeyDown, true);
+  window.addEventListener("keyup", handleKeyUp, true);
   const start = performance.now();
   renderer.setAnimationLoop(() => {
     const elapsed = (performance.now() - start) * 1e-3;
@@ -61129,7 +61251,7 @@ async function createWindowEffectsOverlay({ root }) {
       baseRing.scale.setScalar(outerRadius);
       accentRing.scale.setScalar(outerRadius * pulse);
       accentRing.rotation.z = elapsed * 0.95;
-      if (laserModeEnabled) {
+      if (laserModeEnabled && laserPointerActive) {
         const cursorX = cursorClientX - overlayRect.left - overlayRect.width / 2;
         const cursorY = overlayRect.top + overlayRect.height / 2 - cursorClientY;
         laserSegments.visible = true;
@@ -61152,10 +61274,19 @@ async function createWindowEffectsOverlay({ root }) {
   });
   return {
     dispose() {
+      setLaserModeEnabled(false);
       window.removeEventListener("resize", resize);
-      window.removeEventListener("pointermove", updateCursorPosition);
-      window.removeEventListener("pointerdown", updateCursorPosition);
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("pointermove", handlePointerMove, true);
+      window.removeEventListener("pointerdown", handlePointerDown, true);
+      window.removeEventListener("pointerup", handlePointerUp, true);
+      window.removeEventListener("pointercancel", handlePointerUp, true);
+      window.removeEventListener("wheel", handleWheel, true);
+      window.removeEventListener("click", handleClickLikeEvent, true);
+      window.removeEventListener("dblclick", handleClickLikeEvent, true);
+      window.removeEventListener("auxclick", handleClickLikeEvent, true);
+      window.removeEventListener("contextmenu", handleClickLikeEvent, true);
+      window.removeEventListener("keydown", handleKeyDown, true);
+      window.removeEventListener("keyup", handleKeyUp, true);
       renderer.setAnimationLoop(null);
       baseRingGeometry.dispose();
       baseRingMaterial.dispose();
