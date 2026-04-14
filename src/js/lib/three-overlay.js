@@ -13289,6 +13289,195 @@ var LineBasicMaterial = class extends Material {
     return this;
   }
 };
+var _vStart = /* @__PURE__ */ new Vector3();
+var _vEnd = /* @__PURE__ */ new Vector3();
+var _inverseMatrix$1 = /* @__PURE__ */ new Matrix4();
+var _ray$1 = /* @__PURE__ */ new Ray();
+var _sphere$1 = /* @__PURE__ */ new Sphere();
+var _intersectPointOnRay = /* @__PURE__ */ new Vector3();
+var _intersectPointOnSegment = /* @__PURE__ */ new Vector3();
+var Line = class extends Object3D {
+  /**
+   * Constructs a new line.
+   *
+   * @param {BufferGeometry} [geometry] - The line geometry.
+   * @param {Material|Array<Material>} [material] - The line material.
+   */
+  constructor(geometry = new BufferGeometry(), material = new LineBasicMaterial()) {
+    super();
+    this.isLine = true;
+    this.type = "Line";
+    this.geometry = geometry;
+    this.material = material;
+    this.morphTargetDictionary = void 0;
+    this.morphTargetInfluences = void 0;
+    this.updateMorphTargets();
+  }
+  copy(source, recursive) {
+    super.copy(source, recursive);
+    this.material = Array.isArray(source.material) ? source.material.slice() : source.material;
+    this.geometry = source.geometry;
+    return this;
+  }
+  /**
+   * Computes an array of distance values which are necessary for rendering dashed lines.
+   * For each vertex in the geometry, the method calculates the cumulative length from the
+   * current point to the very beginning of the line.
+   *
+   * @return {Line} A reference to this line.
+   */
+  computeLineDistances() {
+    const geometry = this.geometry;
+    if (geometry.index === null) {
+      const positionAttribute = geometry.attributes.position;
+      const lineDistances = [0];
+      for (let i = 1, l = positionAttribute.count; i < l; i++) {
+        _vStart.fromBufferAttribute(positionAttribute, i - 1);
+        _vEnd.fromBufferAttribute(positionAttribute, i);
+        lineDistances[i] = lineDistances[i - 1];
+        lineDistances[i] += _vStart.distanceTo(_vEnd);
+      }
+      geometry.setAttribute("lineDistance", new Float32BufferAttribute(lineDistances, 1));
+    } else {
+      warn("Line.computeLineDistances(): Computation only possible with non-indexed BufferGeometry.");
+    }
+    return this;
+  }
+  /**
+   * Computes intersection points between a casted ray and this line.
+   *
+   * @param {Raycaster} raycaster - The raycaster.
+   * @param {Array<Object>} intersects - The target array that holds the intersection points.
+   */
+  raycast(raycaster, intersects) {
+    const geometry = this.geometry;
+    const matrixWorld = this.matrixWorld;
+    const threshold = raycaster.params.Line.threshold;
+    const drawRange = geometry.drawRange;
+    if (geometry.boundingSphere === null) geometry.computeBoundingSphere();
+    _sphere$1.copy(geometry.boundingSphere);
+    _sphere$1.applyMatrix4(matrixWorld);
+    _sphere$1.radius += threshold;
+    if (raycaster.ray.intersectsSphere(_sphere$1) === false) return;
+    _inverseMatrix$1.copy(matrixWorld).invert();
+    _ray$1.copy(raycaster.ray).applyMatrix4(_inverseMatrix$1);
+    const localThreshold = threshold / ((this.scale.x + this.scale.y + this.scale.z) / 3);
+    const localThresholdSq = localThreshold * localThreshold;
+    const step2 = this.isLineSegments ? 2 : 1;
+    const index = geometry.index;
+    const attributes = geometry.attributes;
+    const positionAttribute = attributes.position;
+    if (index !== null) {
+      const start = Math.max(0, drawRange.start);
+      const end = Math.min(index.count, drawRange.start + drawRange.count);
+      for (let i = start, l = end - 1; i < l; i += step2) {
+        const a = index.getX(i);
+        const b = index.getX(i + 1);
+        const intersect = checkIntersection(this, raycaster, _ray$1, localThresholdSq, a, b, i);
+        if (intersect) {
+          intersects.push(intersect);
+        }
+      }
+      if (this.isLineLoop) {
+        const a = index.getX(end - 1);
+        const b = index.getX(start);
+        const intersect = checkIntersection(this, raycaster, _ray$1, localThresholdSq, a, b, end - 1);
+        if (intersect) {
+          intersects.push(intersect);
+        }
+      }
+    } else {
+      const start = Math.max(0, drawRange.start);
+      const end = Math.min(positionAttribute.count, drawRange.start + drawRange.count);
+      for (let i = start, l = end - 1; i < l; i += step2) {
+        const intersect = checkIntersection(this, raycaster, _ray$1, localThresholdSq, i, i + 1, i);
+        if (intersect) {
+          intersects.push(intersect);
+        }
+      }
+      if (this.isLineLoop) {
+        const intersect = checkIntersection(this, raycaster, _ray$1, localThresholdSq, end - 1, start, end - 1);
+        if (intersect) {
+          intersects.push(intersect);
+        }
+      }
+    }
+  }
+  /**
+   * Sets the values of {@link Line#morphTargetDictionary} and {@link Line#morphTargetInfluences}
+   * to make sure existing morph targets can influence this 3D object.
+   */
+  updateMorphTargets() {
+    const geometry = this.geometry;
+    const morphAttributes = geometry.morphAttributes;
+    const keys = Object.keys(morphAttributes);
+    if (keys.length > 0) {
+      const morphAttribute = morphAttributes[keys[0]];
+      if (morphAttribute !== void 0) {
+        this.morphTargetInfluences = [];
+        this.morphTargetDictionary = {};
+        for (let m = 0, ml = morphAttribute.length; m < ml; m++) {
+          const name = morphAttribute[m].name || String(m);
+          this.morphTargetInfluences.push(0);
+          this.morphTargetDictionary[name] = m;
+        }
+      }
+    }
+  }
+};
+function checkIntersection(object, raycaster, ray, thresholdSq, a, b, i) {
+  const positionAttribute = object.geometry.attributes.position;
+  _vStart.fromBufferAttribute(positionAttribute, a);
+  _vEnd.fromBufferAttribute(positionAttribute, b);
+  const distSq = ray.distanceSqToSegment(_vStart, _vEnd, _intersectPointOnRay, _intersectPointOnSegment);
+  if (distSq > thresholdSq) return;
+  _intersectPointOnRay.applyMatrix4(object.matrixWorld);
+  const distance2 = raycaster.ray.origin.distanceTo(_intersectPointOnRay);
+  if (distance2 < raycaster.near || distance2 > raycaster.far) return;
+  return {
+    distance: distance2,
+    // What do we want? intersection point on the ray or on the segment??
+    // point: raycaster.ray.at( distance ),
+    point: _intersectPointOnSegment.clone().applyMatrix4(object.matrixWorld),
+    index: i,
+    face: null,
+    faceIndex: null,
+    barycoord: null,
+    object
+  };
+}
+var _start = /* @__PURE__ */ new Vector3();
+var _end = /* @__PURE__ */ new Vector3();
+var LineSegments = class extends Line {
+  /**
+   * Constructs a new line segments.
+   *
+   * @param {BufferGeometry} [geometry] - The line geometry.
+   * @param {Material|Array<Material>} [material] - The line material.
+   */
+  constructor(geometry, material) {
+    super(geometry, material);
+    this.isLineSegments = true;
+    this.type = "LineSegments";
+  }
+  computeLineDistances() {
+    const geometry = this.geometry;
+    if (geometry.index === null) {
+      const positionAttribute = geometry.attributes.position;
+      const lineDistances = [];
+      for (let i = 0, l = positionAttribute.count; i < l; i += 2) {
+        _start.fromBufferAttribute(positionAttribute, i);
+        _end.fromBufferAttribute(positionAttribute, i + 1);
+        lineDistances[i] = i === 0 ? 0 : lineDistances[i - 1];
+        lineDistances[i + 1] = lineDistances[i] + _start.distanceTo(_end);
+      }
+      geometry.setAttribute("lineDistance", new Float32BufferAttribute(lineDistances, 1));
+    } else {
+      warn("LineSegments.computeLineDistances(): Computation only possible with non-indexed BufferGeometry.");
+    }
+    return this;
+  }
+};
 var PointsMaterial = class extends Material {
   /**
    * Constructs a new points material.
@@ -55600,6 +55789,10 @@ var ACCENT_ARC_LENGTH = Math.PI * 0.72;
 var TARGET_PADDING_PX = 5;
 var TARGET_PADDING_RATIO = 0.1;
 var RING_PULSE_SCALE = 0.04;
+var LASER_LINE_COUNT = 18;
+var LASER_TOGGLE_CODE = "Backquote";
+var LASER_ORIGIN_RADIUS_SCALE = 1.04;
+var DEFAULT_CURSOR_POSITION = { x: 0.5, y: 0.5 };
 function getPixelRatio() {
   return Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
 }
@@ -55693,6 +55886,31 @@ function getHighlightColor() {
   const value = getComputedStyle(document.documentElement).getPropertyValue("--highlight-color").trim();
   return value || "#006aff";
 }
+function isEditableEventTarget(target) {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+  return Boolean(
+    target.closest(
+      "input, textarea, select, [contenteditable], [contenteditable='true']"
+    )
+  );
+}
+function updateLaserPositions(positions, { centerX, centerY, radius, cursorX, cursorY }) {
+  const emissionRadius = Math.max(radius * LASER_ORIGIN_RADIUS_SCALE, 1);
+  for (let i = 0; i < LASER_LINE_COUNT; i += 1) {
+    const angle = i / LASER_LINE_COUNT * Math.PI * 2 - Math.PI / 2;
+    const startX = centerX + Math.cos(angle) * emissionRadius;
+    const startY = centerY + Math.sin(angle) * emissionRadius;
+    const offset = i * 6;
+    positions[offset] = startX;
+    positions[offset + 1] = startY;
+    positions[offset + 2] = 0;
+    positions[offset + 3] = cursorX;
+    positions[offset + 4] = cursorY;
+    positions[offset + 5] = 0;
+  }
+}
 async function createWindowEffectsOverlay({ root }) {
   if (!root || !("gpu" in navigator)) {
     return null;
@@ -55746,6 +55964,23 @@ async function createWindowEffectsOverlay({ root }) {
   ringGroup.add(baseRing);
   ringGroup.add(accentRing);
   scene.add(ringGroup);
+  const laserPositions = new Float32Array(LASER_LINE_COUNT * 2 * 3);
+  const laserGeometry = new BufferGeometry();
+  laserGeometry.setAttribute(
+    "position",
+    new BufferAttribute(laserPositions, 3)
+  );
+  const laserMaterial = new LineBasicMaterial({
+    color: accentColor,
+    transparent: true,
+    opacity: 0.72
+  });
+  const laserSegments = new LineSegments(laserGeometry, laserMaterial);
+  laserSegments.visible = false;
+  scene.add(laserSegments);
+  let laserModeEnabled = false;
+  let cursorClientX = getViewportWidth() * DEFAULT_CURSOR_POSITION.x;
+  let cursorClientY = getViewportHeight() * DEFAULT_CURSOR_POSITION.y;
   const resize = () => {
     const { width, height } = getOverlayRect(root);
     renderer.setPixelRatio(getPixelRatio());
@@ -55758,6 +55993,24 @@ async function createWindowEffectsOverlay({ root }) {
   };
   resize();
   window.addEventListener("resize", resize, { passive: true });
+  const updateCursorPosition = (event) => {
+    cursorClientX = event.clientX;
+    cursorClientY = event.clientY;
+  };
+  const handleKeyDown = (event) => {
+    if (event.code !== LASER_TOGGLE_CODE || event.repeat || event.metaKey || event.ctrlKey || event.altKey || isEditableEventTarget(event.target)) {
+      return;
+    }
+    laserModeEnabled = !laserModeEnabled;
+    event.preventDefault();
+  };
+  window.addEventListener("pointermove", updateCursorPosition, {
+    passive: true
+  });
+  window.addEventListener("pointerdown", updateCursorPosition, {
+    passive: true
+  });
+  window.addEventListener("keydown", handleKeyDown);
   const start = performance.now();
   renderer.setAnimationLoop(() => {
     const elapsed = (performance.now() - start) * 1e-3;
@@ -55774,19 +56027,40 @@ async function createWindowEffectsOverlay({ root }) {
       baseRing.scale.setScalar(outerRadius);
       accentRing.scale.setScalar(outerRadius * pulse);
       accentRing.rotation.z = elapsed * 0.95;
+      if (laserModeEnabled) {
+        const cursorX = cursorClientX - overlayRect.left - overlayRect.width / 2;
+        const cursorY = overlayRect.top + overlayRect.height / 2 - cursorClientY;
+        laserSegments.visible = true;
+        updateLaserPositions(laserPositions, {
+          centerX,
+          centerY,
+          radius: outerRadius,
+          cursorX,
+          cursorY
+        });
+        laserGeometry.attributes.position.needsUpdate = true;
+      } else {
+        laserSegments.visible = false;
+      }
     } else {
       ringGroup.visible = false;
+      laserSegments.visible = false;
     }
     renderer.render(scene, camera);
   });
   return {
     dispose() {
       window.removeEventListener("resize", resize);
+      window.removeEventListener("pointermove", updateCursorPosition);
+      window.removeEventListener("pointerdown", updateCursorPosition);
+      window.removeEventListener("keydown", handleKeyDown);
       renderer.setAnimationLoop(null);
       baseRingGeometry.dispose();
       baseRingMaterial.dispose();
       accentRingGeometry.dispose();
       accentRingMaterial.dispose();
+      laserGeometry.dispose();
+      laserMaterial.dispose();
       renderer.dispose();
       root.replaceChildren();
     }

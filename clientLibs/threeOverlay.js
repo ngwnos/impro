@@ -10,6 +10,10 @@ const ACCENT_ARC_LENGTH = Math.PI * 0.72;
 const TARGET_PADDING_PX = 5;
 const TARGET_PADDING_RATIO = 0.1;
 const RING_PULSE_SCALE = 0.04;
+const LASER_LINE_COUNT = 18;
+const LASER_TOGGLE_CODE = "Backquote";
+const LASER_ORIGIN_RADIUS_SCALE = 1.04;
+const DEFAULT_CURSOR_POSITION = { x: 0.5, y: 0.5 };
 
 function getPixelRatio() {
   return Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
@@ -151,6 +155,39 @@ function getHighlightColor() {
   return value || "#006aff";
 }
 
+function isEditableEventTarget(target) {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  return Boolean(
+    target.closest(
+      "input, textarea, select, [contenteditable], [contenteditable='true']",
+    ),
+  );
+}
+
+function updateLaserPositions(
+  positions,
+  { centerX, centerY, radius, cursorX, cursorY },
+) {
+  const emissionRadius = Math.max(radius * LASER_ORIGIN_RADIUS_SCALE, 1);
+
+  for (let i = 0; i < LASER_LINE_COUNT; i += 1) {
+    const angle = (i / LASER_LINE_COUNT) * Math.PI * 2 - Math.PI / 2;
+    const startX = centerX + Math.cos(angle) * emissionRadius;
+    const startY = centerY + Math.sin(angle) * emissionRadius;
+    const offset = i * 6;
+
+    positions[offset] = startX;
+    positions[offset + 1] = startY;
+    positions[offset + 2] = 0;
+    positions[offset + 3] = cursorX;
+    positions[offset + 4] = cursorY;
+    positions[offset + 5] = 0;
+  }
+}
+
 export async function createWindowEffectsOverlay({ root }) {
   if (!root || !("gpu" in navigator)) {
     return null;
@@ -211,6 +248,25 @@ export async function createWindowEffectsOverlay({ root }) {
   ringGroup.add(accentRing);
   scene.add(ringGroup);
 
+  const laserPositions = new Float32Array(LASER_LINE_COUNT * 2 * 3);
+  const laserGeometry = new THREE.BufferGeometry();
+  laserGeometry.setAttribute(
+    "position",
+    new THREE.BufferAttribute(laserPositions, 3),
+  );
+  const laserMaterial = new THREE.LineBasicMaterial({
+    color: accentColor,
+    transparent: true,
+    opacity: 0.72,
+  });
+  const laserSegments = new THREE.LineSegments(laserGeometry, laserMaterial);
+  laserSegments.visible = false;
+  scene.add(laserSegments);
+
+  let laserModeEnabled = false;
+  let cursorClientX = getViewportWidth() * DEFAULT_CURSOR_POSITION.x;
+  let cursorClientY = getViewportHeight() * DEFAULT_CURSOR_POSITION.y;
+
   const resize = () => {
     const { width, height } = getOverlayRect(root);
     renderer.setPixelRatio(getPixelRatio());
@@ -224,6 +280,35 @@ export async function createWindowEffectsOverlay({ root }) {
 
   resize();
   window.addEventListener("resize", resize, { passive: true });
+
+  const updateCursorPosition = (event) => {
+    cursorClientX = event.clientX;
+    cursorClientY = event.clientY;
+  };
+
+  const handleKeyDown = (event) => {
+    if (
+      event.code !== LASER_TOGGLE_CODE ||
+      event.repeat ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.altKey ||
+      isEditableEventTarget(event.target)
+    ) {
+      return;
+    }
+
+    laserModeEnabled = !laserModeEnabled;
+    event.preventDefault();
+  };
+
+  window.addEventListener("pointermove", updateCursorPosition, {
+    passive: true,
+  });
+  window.addEventListener("pointerdown", updateCursorPosition, {
+    passive: true,
+  });
+  window.addEventListener("keydown", handleKeyDown);
 
   const start = performance.now();
   renderer.setAnimationLoop(() => {
@@ -247,8 +332,28 @@ export async function createWindowEffectsOverlay({ root }) {
       baseRing.scale.setScalar(outerRadius);
       accentRing.scale.setScalar(outerRadius * pulse);
       accentRing.rotation.z = elapsed * 0.95;
+
+      if (laserModeEnabled) {
+        const cursorX =
+          cursorClientX - overlayRect.left - overlayRect.width / 2;
+        const cursorY =
+          overlayRect.top + overlayRect.height / 2 - cursorClientY;
+
+        laserSegments.visible = true;
+        updateLaserPositions(laserPositions, {
+          centerX,
+          centerY,
+          radius: outerRadius,
+          cursorX,
+          cursorY,
+        });
+        laserGeometry.attributes.position.needsUpdate = true;
+      } else {
+        laserSegments.visible = false;
+      }
     } else {
       ringGroup.visible = false;
+      laserSegments.visible = false;
     }
 
     renderer.render(scene, camera);
@@ -257,11 +362,16 @@ export async function createWindowEffectsOverlay({ root }) {
   return {
     dispose() {
       window.removeEventListener("resize", resize);
+      window.removeEventListener("pointermove", updateCursorPosition);
+      window.removeEventListener("pointerdown", updateCursorPosition);
+      window.removeEventListener("keydown", handleKeyDown);
       renderer.setAnimationLoop(null);
       baseRingGeometry.dispose();
       baseRingMaterial.dispose();
       accentRingGeometry.dispose();
       accentRingMaterial.dispose();
+      laserGeometry.dispose();
+      laserMaterial.dispose();
       renderer.dispose();
       root.replaceChildren();
     },
