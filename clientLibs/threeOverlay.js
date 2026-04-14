@@ -1,5 +1,19 @@
 import * as THREE from "three/webgpu";
-import { pass, vec4, luminance } from "three/tsl";
+import {
+  pass,
+  vec2,
+  vec4,
+  float,
+  Fn,
+  luminance,
+  max,
+  screenUV,
+  smoothstep,
+  texture as textureNode,
+  uniform,
+  uv,
+  length,
+} from "three/tsl";
 import { bloom } from "three/addons/tsl/display/BloomNode.js";
 
 const MAX_PIXEL_RATIO = 2;
@@ -20,6 +34,10 @@ const LASER_BLOOM_STRENGTH = 1.6;
 const LASER_BLOOM_RADIUS = 0.28;
 const LASER_BLOOM_THRESHOLD = 0;
 const LASER_BLOOM_RAMP_SPEED = 8;
+const BURN_DECAY_SPEED = 0.12;
+const BURN_SPLAT_RADIUS_PX = 22;
+const BURN_SPLAT_DEPOSIT_RATE = 8;
+const BURN_SPLAT_SOFTNESS = 0.35;
 
 function getPixelRatio() {
   return Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
@@ -160,6 +178,14 @@ function getTargetCandidate(root) {
   return candidates[0] ?? null;
 }
 
+function getBackgroundColor() {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue("--background-color")
+    .trim();
+
+  return value || "#ffffff";
+}
+
 function isEditableEventTarget(target) {
   if (!(target instanceof Element)) {
     return false;
@@ -294,6 +320,67 @@ export async function createWindowEffectsOverlay({ root }) {
   laserSegments.visible = false;
   scene.add(laserSegments);
 
+  const burnRenderTargetA = new THREE.RenderTarget(1, 1, {
+    depthBuffer: false,
+  });
+  burnRenderTargetA.texture.name = "LaserBurn.a";
+  burnRenderTargetA.texture.generateMipmaps = false;
+
+  const burnRenderTargetB = new THREE.RenderTarget(1, 1, {
+    depthBuffer: false,
+  });
+  burnRenderTargetB.texture.name = "LaserBurn.b";
+  burnRenderTargetB.texture.generateMipmaps = false;
+
+  let burnReadRenderTarget = burnRenderTargetA;
+  let burnWriteRenderTarget = burnRenderTargetB;
+  const burnMaskTextureNode = textureNode(
+    burnReadRenderTarget.texture,
+    screenUV,
+  );
+  const burnAccumulationTextureNode = textureNode(
+    burnReadRenderTarget.texture,
+    uv(),
+  );
+  const burnCursorUvNode = uniform(new THREE.Vector2(0.5, 0.5));
+  const burnAspectNode = uniform(1);
+  const burnRadiusNode = uniform(0.02);
+  const burnDepositNode = uniform(0);
+  const burnDecayNode = uniform(1);
+  const burnSplatEnabledNode = uniform(0);
+  const burnBackgroundColorNode = uniform(
+    new THREE.Color(getBackgroundColor()),
+  );
+  let currentBackgroundColorValue = getBackgroundColor();
+  let burnTargetsNeedClear = true;
+
+  const burnUpdateMaterial = new THREE.NodeMaterial();
+  burnUpdateMaterial.name = "LaserBurnUpdate";
+  burnUpdateMaterial.fragmentNode = Fn(() => {
+    const previousMask = burnAccumulationTextureNode
+      .sample()
+      .r.mul(burnDecayNode);
+    const delta = uv().sub(burnCursorUvNode);
+    const correctedDelta = vec2(delta.x.mul(burnAspectNode), delta.y);
+    const distanceToCursor = length(correctedDelta);
+    const splatMask = burnSplatEnabledNode.mul(
+      float(1).sub(
+        smoothstep(
+          burnRadiusNode.mul(BURN_SPLAT_SOFTNESS),
+          burnRadiusNode,
+          distanceToCursor,
+        ),
+      ),
+    );
+    const nextMask = previousMask
+      .add(splatMask.mul(burnDepositNode))
+      .clamp(0, 1);
+
+    return vec4(nextMask, nextMask, nextMask, nextMask);
+  })();
+
+  const burnQuad = new THREE.QuadMesh(burnUpdateMaterial);
+
   const renderPipeline = new THREE.RenderPipeline(renderer);
   const scenePass = pass(scene, camera);
   const scenePassColor = scenePass.getTextureNode("output");
@@ -304,11 +391,21 @@ export async function createWindowEffectsOverlay({ root }) {
     LASER_BLOOM_THRESHOLD,
   );
   const bloomAlpha = luminance(bloomPass.rgb).mul(0.6).clamp(0, 1);
-  const outputAlpha = scenePassColor.a.max(bloomAlpha).clamp(0, 1);
-  renderPipeline.outputNode = vec4(
-    scenePassColor.rgb.add(bloomPass.rgb),
-    outputAlpha,
+  const sceneOverlayAlpha = scenePassColor.a.max(bloomAlpha).clamp(0, 1);
+  const burnMask = burnMaskTextureNode.r.clamp(0, 1);
+  const compositeAlpha = sceneOverlayAlpha
+    .add(burnMask.mul(sceneOverlayAlpha.oneMinus()))
+    .clamp(0, 1);
+  const compositePremultipliedColor = scenePassColor.rgb
+    .add(bloomPass.rgb)
+    .mul(sceneOverlayAlpha)
+    .add(
+      burnBackgroundColorNode.mul(burnMask.mul(sceneOverlayAlpha.oneMinus())),
+    );
+  const compositeColor = compositePremultipliedColor.div(
+    max(compositeAlpha, float(1e-5)),
   );
+  renderPipeline.outputNode = vec4(compositeColor, compositeAlpha);
 
   let laserModeEnabled = false;
   let laserPointerActive = false;
@@ -320,6 +417,9 @@ export async function createWindowEffectsOverlay({ root }) {
 
   const resize = () => {
     const { width, height } = getOverlayRect(root);
+    const pixelRatio = getPixelRatio();
+    const targetWidth = Math.max(Math.floor(width * pixelRatio), 1);
+    const targetHeight = Math.max(Math.floor(height * pixelRatio), 1);
     renderer.setPixelRatio(getPixelRatio());
     renderer.setSize(width, height, false);
     camera.left = -width / 2;
@@ -327,6 +427,9 @@ export async function createWindowEffectsOverlay({ root }) {
     camera.top = height / 2;
     camera.bottom = -height / 2;
     camera.updateProjectionMatrix();
+    burnRenderTargetA.setSize(targetWidth, targetHeight);
+    burnRenderTargetB.setSize(targetWidth, targetHeight);
+    burnTargetsNeedClear = true;
   };
 
   resize();
@@ -335,6 +438,57 @@ export async function createWindowEffectsOverlay({ root }) {
   const updateCursorPosition = (event) => {
     cursorClientX = event.clientX;
     cursorClientY = event.clientY;
+  };
+
+  const clearBurnTargets = () => {
+    const currentRenderTarget = renderer.getRenderTarget();
+
+    renderer.setRenderTarget(burnRenderTargetA);
+    renderer.clear();
+    renderer.setRenderTarget(burnRenderTargetB);
+    renderer.clear();
+    renderer.setRenderTarget(currentRenderTarget);
+  };
+
+  const updateBurnBackgroundColor = () => {
+    const nextBackgroundColorValue = getBackgroundColor();
+
+    if (nextBackgroundColorValue === currentBackgroundColorValue) {
+      return;
+    }
+
+    burnBackgroundColorNode.value.setStyle(nextBackgroundColorValue);
+    currentBackgroundColorValue = nextBackgroundColorValue;
+  };
+
+  const updateBurnMask = (deltaTime, overlayRect, shouldSplat) => {
+    if (burnTargetsNeedClear) {
+      clearBurnTargets();
+      burnTargetsNeedClear = false;
+    }
+
+    burnAspectNode.value = overlayRect.width / overlayRect.height;
+    burnRadiusNode.value = BURN_SPLAT_RADIUS_PX / overlayRect.height;
+    burnDecayNode.value = Math.exp(-BURN_DECAY_SPEED * deltaTime);
+    burnDepositNode.value = BURN_SPLAT_DEPOSIT_RATE * deltaTime;
+    burnSplatEnabledNode.value = shouldSplat ? 1 : 0;
+    burnCursorUvNode.value.set(
+      (cursorClientX - overlayRect.left) / overlayRect.width,
+      1 - (cursorClientY - overlayRect.top) / overlayRect.height,
+    );
+
+    const currentRenderTarget = renderer.getRenderTarget();
+
+    renderer.setRenderTarget(burnWriteRenderTarget);
+    burnQuad.render(renderer);
+    renderer.setRenderTarget(currentRenderTarget);
+
+    [burnReadRenderTarget, burnWriteRenderTarget] = [
+      burnWriteRenderTarget,
+      burnReadRenderTarget,
+    ];
+    burnMaskTextureNode.value = burnReadRenderTarget.texture;
+    burnAccumulationTextureNode.value = burnReadRenderTarget.texture;
   };
 
   const setLaserModeEnabled = (enabled) => {
@@ -509,11 +663,16 @@ export async function createWindowEffectsOverlay({ root }) {
       currentBloomStrength = targetBloomStrength;
     }
     bloomPass.strength.value = currentBloomStrength;
+    updateBurnBackgroundColor();
+    const overlayRect = getOverlayRect(root);
     const target = getTargetCandidate(root);
+    const shouldSplat =
+      target !== null && laserModeEnabled && laserPointerActive;
+
+    updateBurnMask(deltaTime, overlayRect, shouldSplat);
 
     if (target) {
       const { rect } = target;
-      const overlayRect = getOverlayRect(root);
       const centerX =
         rect.left + rect.width / 2 - overlayRect.left - overlayRect.width / 2;
       const centerY =
@@ -575,6 +734,9 @@ export async function createWindowEffectsOverlay({ root }) {
       laserDotMaterial.dispose();
       laserGeometry.dispose();
       laserMaterial.dispose();
+      burnRenderTargetA.dispose();
+      burnRenderTargetB.dispose();
+      burnUpdateMaterial.dispose();
       renderer.dispose();
       root.replaceChildren();
     },
