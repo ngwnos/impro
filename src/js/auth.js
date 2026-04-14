@@ -166,11 +166,22 @@ export class OAuth {
     this._client = null;
   }
 
+  getOauthOrigin() {
+    if (isDev()) {
+      return `https://${window.env.hostName}`;
+    }
+    return window.location.origin;
+  }
+
   async getClient() {
     if (!this._client) {
+      const oauthOrigin = this.getOauthOrigin();
       this._client = await OauthClient.load({
-        clientId: `https://${window.env.hostName}/oauth-client-metadata.json`,
-        redirectUri: `https://${window.env.hostName}/callback.html`,
+        clientId: new URL(
+          "/oauth-client-metadata.json",
+          oauthOrigin,
+        ).toString(),
+        redirectUri: new URL("/callback.html", oauthOrigin).toString(),
       });
     }
     return this._client;

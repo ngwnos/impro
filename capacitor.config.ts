@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { CapacitorConfig } from "@capacitor/cli";
 
 const localIp = process.env.LOCAL_IP;
