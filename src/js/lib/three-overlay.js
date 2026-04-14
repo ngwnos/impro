@@ -61074,7 +61074,12 @@ async function createWindowEffectsOverlay({ root }) {
     LASER_BLOOM_RADIUS,
     LASER_BLOOM_THRESHOLD
   );
-  renderPipeline.outputNode = scenePassColor.add(bloomPass);
+  const bloomAlpha = luminance2(bloomPass.rgb).mul(0.6).clamp(0, 1);
+  const outputAlpha = scenePassColor.a.max(bloomAlpha).clamp(0, 1);
+  renderPipeline.outputNode = vec42(
+    scenePassColor.rgb.add(bloomPass.rgb),
+    outputAlpha
+  );
   let laserModeEnabled = false;
   let cursorClientX = getViewportWidth() * DEFAULT_CURSOR_POSITION.x;
   let cursorClientY = getViewportHeight() * DEFAULT_CURSOR_POSITION.y;

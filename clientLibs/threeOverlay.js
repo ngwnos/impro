@@ -1,5 +1,5 @@
 import * as THREE from "three/webgpu";
-import { pass } from "three/tsl";
+import { pass, vec4, luminance } from "three/tsl";
 import { bloom } from "three/addons/tsl/display/BloomNode.js";
 
 const MAX_PIXEL_RATIO = 2;
@@ -284,7 +284,12 @@ export async function createWindowEffectsOverlay({ root }) {
     LASER_BLOOM_RADIUS,
     LASER_BLOOM_THRESHOLD,
   );
-  renderPipeline.outputNode = scenePassColor.add(bloomPass);
+  const bloomAlpha = luminance(bloomPass.rgb).mul(0.6).clamp(0, 1);
+  const outputAlpha = scenePassColor.a.max(bloomAlpha).clamp(0, 1);
+  renderPipeline.outputNode = vec4(
+    scenePassColor.rgb.add(bloomPass.rgb),
+    outputAlpha,
+  );
 
   let laserModeEnabled = false;
   let cursorClientX = getViewportWidth() * DEFAULT_CURSOR_POSITION.x;
