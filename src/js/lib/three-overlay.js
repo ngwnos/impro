@@ -60874,7 +60874,7 @@ var LASER_COLOR = "#ff3b30";
 var LASER_COLOR_INTENSITY = 3.2;
 var LASER_BLOOM_STRENGTH = 1.6;
 var LASER_BLOOM_RADIUS = 0.28;
-var LASER_BLOOM_THRESHOLD = 0.55;
+var LASER_BLOOM_THRESHOLD = 0;
 function getPixelRatio() {
   return Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
 }
