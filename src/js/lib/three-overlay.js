@@ -61059,7 +61059,6 @@ var LASER_BLOOM_STRENGTH = 1.6;
 var LASER_BLOOM_RADIUS = 0.28;
 var LASER_BLOOM_THRESHOLD = 0;
 var LASER_BLOOM_RAMP_SPEED = 8;
-var BURN_DECAY_SPEED = 0.12;
 var BURN_SPLAT_RADIUS_PX = 22;
 var BURN_SPLAT_DEPOSIT_RATE = 8;
 var BURN_SPLAT_SOFTNESS = 0.35;
@@ -61301,7 +61300,6 @@ async function createWindowEffectsOverlay({ root }) {
   const burnAspectNode = uniform2(1);
   const burnRadiusNode = uniform2(0.02);
   const burnDepositNode = uniform2(0);
-  const burnDecayNode = uniform2(1);
   const burnSplatEnabledNode = uniform2(0);
   const burnBackgroundColorNode = uniform2(
     new Color(getBackgroundColor())
@@ -61311,7 +61309,7 @@ async function createWindowEffectsOverlay({ root }) {
   const burnUpdateMaterial = new NodeMaterial();
   burnUpdateMaterial.name = "LaserBurnUpdate";
   burnUpdateMaterial.fragmentNode = Fn2(() => {
-    const previousMask = burnAccumulationTextureNode.sample().r.mul(burnDecayNode);
+    const previousMask = burnAccumulationTextureNode.sample().r;
     const delta = uv2().sub(burnCursorUvNode);
     const correctedDelta = vec22(delta.x.mul(burnAspectNode), delta.y);
     const distanceToCursor = length2(correctedDelta);
@@ -61400,7 +61398,6 @@ async function createWindowEffectsOverlay({ root }) {
     }
     burnAspectNode.value = overlayRect.width / overlayRect.height;
     burnRadiusNode.value = BURN_SPLAT_RADIUS_PX / overlayRect.height;
-    burnDecayNode.value = Math.exp(-BURN_DECAY_SPEED * deltaTime3);
     burnDepositNode.value = BURN_SPLAT_DEPOSIT_RATE * deltaTime3;
     burnSplatEnabledNode.value = shouldSplat ? 1 : 0;
     burnCursorUvNode.value.set(
