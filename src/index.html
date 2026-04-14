@@ -16,6 +16,7 @@
         }, 2000);
       </script>
     </div>
+    <div id="window-effects-overlay" aria-hidden="true"></div>
 
     <script type="module">
       import homeView from "/js/views/home.view.js";
@@ -62,10 +63,13 @@
         IN_APP_LINK_DOMAINS,
       } from "/js/config.js";
       import { setUpIdentityPrecaching } from "/js/identityPrecaching.js";
+      import { setUpWindowEffectsOverlay } from "/js/windowEffectsOverlay.js";
 
       // Dev tools
       import "/js/perf.js";
       import { enableErrorLogs } from "/js/errorLogs.js";
+
+      void setUpWindowEffectsOverlay();
 
       if (window.env.environment === "development") {
         enableErrorLogs();
