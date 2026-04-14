@@ -28,6 +28,21 @@ t.describe("mainLayoutTemplate", (it) => {
     );
     assert(centerColumn.querySelector(".test-content") !== null);
   });
+
+  it("should render right column content when provided", () => {
+    const result = mainLayoutTemplate({
+      isAuthenticated: true,
+      currentUser: mockUser,
+      rightColumn: html`<div class="right-rail-test">Right Rail</div>`,
+      children: html`<div>Content</div>`,
+    });
+    const container = document.createElement("div");
+    render(result, container);
+    const rightColumn = container.querySelector(
+      "[data-testid='view-column-right']",
+    );
+    assert(rightColumn.querySelector(".right-rail-test") !== null);
+  });
 });
 
 t.describe("mainLayoutTemplate - footer", (it) => {

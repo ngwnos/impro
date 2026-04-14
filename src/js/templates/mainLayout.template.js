@@ -16,6 +16,7 @@ export function mainLayoutTemplate({
   numChatNotifications = 0,
   onClickActiveNavItem,
   children,
+  rightColumn = "",
   showFloatingComposeButton = false,
   onClickComposeButton = defaultOnClickComposeButton,
   showSidebarOverlay = true,
@@ -43,7 +44,9 @@ export function mainLayoutTemplate({
       <div class="view-column-center" data-testid="view-column-center">
         ${children}
       </div>
-      <div class="view-column-right"></div>
+      <div class="view-column-right" data-testid="view-column-right">
+        ${rightColumn}
+      </div>
     </div>
     ${footerTemplate({
       isAuthenticated,
