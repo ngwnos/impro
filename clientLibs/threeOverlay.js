@@ -343,14 +343,7 @@ export async function createWindowEffectsOverlay({ root }) {
   let burnReadRenderTarget = burnRenderTargetA;
   let burnWriteRenderTarget = burnRenderTargetB;
   const burnTextureUvNode = vec2(uv().x, float(1).sub(uv().y));
-  const burnMaskTextureNode = textureNode(
-    burnReadRenderTarget.texture,
-    burnTextureUvNode,
-  );
-  const burnAccumulationTextureNode = textureNode(
-    burnReadRenderTarget.texture,
-    burnTextureUvNode,
-  );
+  const burnTextureNode = textureNode(burnReadRenderTarget.texture);
   const burnCursorUvNode = uniform(new THREE.Vector2(0.5, 0.5));
   const burnScrollUvDeltaNode = uniform(new THREE.Vector2(0, 0));
   const burnAspectNode = uniform(1);
@@ -380,7 +373,7 @@ export async function createWindowEffectsOverlay({ root }) {
       .and(previousBurnUv.y.greaterThanEqual(0))
       .and(previousBurnUv.y.lessThanEqual(1));
     const previousMask = previousBurnInBounds.select(
-      burnAccumulationTextureNode.sample(previousBurnTextureUv).r,
+      burnTextureNode.sample(previousBurnTextureUv).r,
       float(0),
     );
     const delta = uv().sub(burnCursorUvNode);
@@ -415,7 +408,7 @@ export async function createWindowEffectsOverlay({ root }) {
   );
   const bloomAlpha = luminance(bloomPass.rgb).mul(0.6).clamp(0, 1);
   const sceneAlpha = scenePassColor.a.clamp(0, 1);
-  const burnMask = burnMaskTextureNode.r.clamp(0, 1);
+  const burnMask = burnTextureNode.sample(burnTextureUvNode).r.clamp(0, 1);
   const sceneBloomAlpha = sceneAlpha.max(bloomAlpha).clamp(0, 1);
   const sceneBloomPremultipliedColor = scenePassColor.rgb
     .mul(sceneAlpha)
@@ -517,8 +510,7 @@ export async function createWindowEffectsOverlay({ root }) {
       burnWriteRenderTarget,
       burnReadRenderTarget,
     ];
-    burnMaskTextureNode.value = burnReadRenderTarget.texture;
-    burnAccumulationTextureNode.value = burnReadRenderTarget.texture;
+    burnTextureNode.value = burnReadRenderTarget.texture;
   };
 
   const setLaserModeEnabled = (enabled) => {

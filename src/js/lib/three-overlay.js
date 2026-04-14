@@ -61288,14 +61288,7 @@ async function createWindowEffectsOverlay({ root }) {
   let burnReadRenderTarget = burnRenderTargetA;
   let burnWriteRenderTarget = burnRenderTargetB;
   const burnTextureUvNode = vec22(uv2().x, float2(1).sub(uv2().y));
-  const burnMaskTextureNode = texture2(
-    burnReadRenderTarget.texture,
-    burnTextureUvNode
-  );
-  const burnAccumulationTextureNode = texture2(
-    burnReadRenderTarget.texture,
-    burnTextureUvNode
-  );
+  const burnTextureNode = texture2(burnReadRenderTarget.texture);
   const burnCursorUvNode = uniform2(new Vector2(0.5, 0.5));
   const burnScrollUvDeltaNode = uniform2(new Vector2(0, 0));
   const burnAspectNode = uniform2(1);
@@ -61320,7 +61313,7 @@ async function createWindowEffectsOverlay({ root }) {
     );
     const previousBurnInBounds = previousBurnUv.x.greaterThanEqual(0).and(previousBurnUv.x.lessThanEqual(1)).and(previousBurnUv.y.greaterThanEqual(0)).and(previousBurnUv.y.lessThanEqual(1));
     const previousMask = previousBurnInBounds.select(
-      burnAccumulationTextureNode.sample(previousBurnTextureUv).r,
+      burnTextureNode.sample(previousBurnTextureUv).r,
       float2(0)
     );
     const delta = uv2().sub(burnCursorUvNode);
@@ -61350,7 +61343,7 @@ async function createWindowEffectsOverlay({ root }) {
   );
   const bloomAlpha = luminance2(bloomPass.rgb).mul(0.6).clamp(0, 1);
   const sceneAlpha = scenePassColor.a.clamp(0, 1);
-  const burnMask = burnMaskTextureNode.r.clamp(0, 1);
+  const burnMask = burnTextureNode.sample(burnTextureUvNode).r.clamp(0, 1);
   const sceneBloomAlpha = sceneAlpha.max(bloomAlpha).clamp(0, 1);
   const sceneBloomPremultipliedColor = scenePassColor.rgb.mul(sceneAlpha).add(bloomPass.rgb.mul(bloomAlpha));
   const burnAlpha = burnMask.mul(sceneBloomAlpha.oneMinus()).clamp(0, 1);
@@ -61435,8 +61428,7 @@ async function createWindowEffectsOverlay({ root }) {
       burnWriteRenderTarget,
       burnReadRenderTarget
     ];
-    burnMaskTextureNode.value = burnReadRenderTarget.texture;
-    burnAccumulationTextureNode.value = burnReadRenderTarget.texture;
+    burnTextureNode.value = burnReadRenderTarget.texture;
   };
   const setLaserModeEnabled = (enabled) => {
     if (laserModeEnabled === enabled) {
