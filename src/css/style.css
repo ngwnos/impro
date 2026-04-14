@@ -340,10 +340,6 @@ main {
   margin: 0 auto;
 }
 
-.view-column-right {
-  display: none;
-}
-
 @media (min-width: 800px) {
   .view-columns {
     display: flex;
@@ -366,42 +362,6 @@ main {
     min-width: 600px;
     margin: 0 auto;
   }
-
-  .view-column-right {
-    flex: 1;
-    display: flex;
-    justify-content: flex-start;
-    min-width: 0;
-  }
-
-  .desktop-secondary-column {
-    position: sticky;
-    top: 0;
-    width: min(320px, 100%);
-    min-height: 100vh;
-    border-right: var(--hair) solid var(--post-border-color);
-    background-color: var(--background-color);
-  }
-}
-
-.desktop-secondary-button {
-  width: 100%;
-  border: none;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  appearance: none;
-}
-
-.desktop-secondary-button.selected {
-  background-color: var(--highlight-color-tint);
-}
-
-.desktop-secondary-button:focus-visible {
-  outline: 2px solid var(--highlight-color);
-  outline-offset: -2px;
 }
 
 .rich-text {
@@ -1269,8 +1229,50 @@ body.scroll-locked header {
   margin-right: 6px;
 }
 
+.sidebar-tools {
+  display: none;
+  margin: 14px 6px 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar-tools-label {
+  padding: 0 14px 4px;
+  color: var(--secondary-text-color);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sidebar-tool-button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  border-radius: var(--square-button-radius);
+  background: transparent;
+  color: var(--text-color);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.sidebar-tool-button.selected {
+  background-color: var(--highlight-color-tint);
+}
+
+.sidebar-tool-button:focus-visible {
+  outline: 2px solid var(--highlight-color);
+  outline-offset: -2px;
+}
+
 @media (min-width: 1200px) {
   .sidebar-compose-button {
+    display: flex;
+  }
+
+  .sidebar-tools {
     display: flex;
   }
 }
@@ -4246,11 +4248,11 @@ emoji-picker {
     background-color: var(--post-hover-color);
   }
 
-  .desktop-secondary-button:hover {
+  .sidebar-tool-button:hover {
     background-color: var(--post-hover-color);
   }
 
-  .desktop-secondary-button.selected:hover {
+  .sidebar-tool-button.selected:hover {
     background-color: var(--highlight-color-tint-hover);
   }
 }

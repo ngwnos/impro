@@ -21,7 +21,7 @@ const VISUAL_AVATAR_SELECTOR =
 const TARGET_PADDING_PX = 5;
 const TARGET_PADDING_RATIO = 0.1;
 const LASER_LINE_COUNT = 18;
-const WINDOW_TOOLS_PANEL_SELECTOR = "[data-testid='window-tools-panel']";
+const WINDOW_TOOLS_PANEL_SELECTOR = "[data-testid='sidebar-tools']";
 const WINDOW_EFFECT_TOOL_LASER = "laser";
 const LASER_ORIGIN_RADIUS_SCALE = 1.04;
 const LASER_DOT_RADIUS_PX = 3.5;

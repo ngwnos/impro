@@ -9,12 +9,6 @@ import { PostSeenObserver } from "/js/postSeenObserver.js";
 import { PostInteractionHandler } from "/js/postInteractionHandler.js";
 import { FEED_PAGE_SIZE, DISCOVER_FEED_URI } from "/js/config.js";
 import { showToast } from "/js/toasts.js";
-import { classnames } from "/js/utils.js";
-import {
-  WINDOW_EFFECT_TOOLS,
-  getActiveWindowEffectTool,
-  toggleWindowEffectTool,
-} from "/js/windowEffectsOverlay.js";
 
 class HomeView extends View {
   async render({
@@ -92,93 +86,6 @@ class HomeView extends View {
     async function handleMenuClick() {
       const sidebar = root.querySelector("animated-sidebar");
       sidebar.open();
-    }
-
-    function rightColumnTemplate({ feedGenerators, activeWindowEffectTool }) {
-      const tools = [
-        { id: WINDOW_EFFECT_TOOLS.LASER, label: "Laser" },
-        {
-          id: WINDOW_EFFECT_TOOLS.BASKETBALLIZE,
-          label: "Basketballize",
-        },
-      ];
-
-      return html`
-        <div class="desktop-secondary-column" data-testid="home-right-column">
-          <section class="desktop-secondary-section">
-            <div class="feeds-list-header">Feeds</div>
-            <div class="feeds-list">
-              ${feedGenerators && feedGenerators.length > 0
-                ? feedGenerators.map(
-                    (feedGenerator) => html`
-                      <button
-                        type="button"
-                        class=${classnames(
-                          "feeds-list-item",
-                          "desktop-secondary-button",
-                          {
-                            selected:
-                              persistedState.currentFeedUri ===
-                              feedGenerator.uri,
-                          },
-                        )}
-                        @click=${() => handleTabClick(feedGenerator.uri)}
-                      >
-                        <div class="feeds-list-item-avatar">
-                          <img
-                            src=${feedGenerator.avatar ||
-                            "/img/list-avatar-fallback.svg"}
-                            alt=${feedGenerator.displayName}
-                            class="feed-avatar"
-                          />
-                        </div>
-                        <div class="feeds-list-item-content">
-                          <div class="feeds-list-item-title">
-                            ${feedGenerator.displayName}
-                          </div>
-                          ${feedGenerator.creator
-                            ? html`<div class="feeds-list-item-creator">
-                                by @${feedGenerator.creator.handle}
-                              </div>`
-                            : ""}
-                        </div>
-                      </button>
-                    `,
-                  )
-                : html`<div class="loading-spinner"></div>`}
-            </div>
-          </section>
-          <section
-            class="desktop-secondary-section"
-            data-testid="window-tools-panel"
-          >
-            <div class="feeds-list-header">Tools</div>
-            <div class="feeds-list">
-              ${tools.map(
-                (tool) => html`
-                  <button
-                    type="button"
-                    class=${classnames(
-                      "feeds-list-item",
-                      "desktop-secondary-button",
-                      { selected: activeWindowEffectTool === tool.id },
-                    )}
-                    data-testid="window-tool-${tool.id}"
-                    @click=${() => {
-                      toggleWindowEffectTool(tool.id);
-                      renderPage();
-                    }}
-                  >
-                    <div class="feeds-list-item-content">
-                      <div class="feeds-list-item-title">${tool.label}</div>
-                    </div>
-                  </button>
-                `,
-              )}
-            </div>
-          </section>
-        </div>
-      `;
     }
 
     // When supported, replace with: https://developer.mozilla.org/en-US/docs/Web/API/Element/scrollIntoViewIfNeeded
@@ -288,7 +195,6 @@ class HomeView extends View {
       const currentUser = dataLayer.selectors.getCurrentUser();
       const feedGenerators =
         dataLayer.selectors.getPinnedFeedGenerators() ?? [];
-      const activeWindowEffectTool = getActiveWindowEffectTool();
       render(
         html`<div id="home-view">
           ${mainLayoutTemplate({
@@ -303,10 +209,6 @@ class HomeView extends View {
             showFloatingComposeButton: true,
             onClickComposeButton: () =>
               postComposerService.composePost({ currentUser }),
-            rightColumn: rightColumnTemplate({
-              feedGenerators,
-              activeWindowEffectTool,
-            }),
             children: html` <header>
                 <div class="header-row">
                   <button class="menu-button" @click=${() => handleMenuClick()}>

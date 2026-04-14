@@ -61048,7 +61048,7 @@ var VISUAL_AVATAR_SELECTOR = ".avatar-image, .avatar-placeholder, .avatar-link, 
 var TARGET_PADDING_PX = 5;
 var TARGET_PADDING_RATIO = 0.1;
 var LASER_LINE_COUNT = 18;
-var WINDOW_TOOLS_PANEL_SELECTOR = "[data-testid='window-tools-panel']";
+var WINDOW_TOOLS_PANEL_SELECTOR = "[data-testid='sidebar-tools']";
 var WINDOW_EFFECT_TOOL_LASER = "laser";
 var LASER_ORIGIN_RADIUS_SCALE = 1.04;
 var LASER_DOT_RADIUS_PX = 3.5;
