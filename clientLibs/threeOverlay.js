@@ -1,8 +1,11 @@
 import * as THREE from "three/webgpu";
 
 const MAX_PIXEL_RATIO = 2;
-const AVATAR_SELECTOR =
-  ".sidebar-profile-avatar [data-testid='avatar-image'], .sidebar-profile-avatar .avatar-placeholder";
+const AVATAR_SELECTORS = [
+  ".sidebar-profile-avatar .avatar-link",
+  ".sidebar-profile-avatar [data-testid='avatar']",
+  ".sidebar-profile-avatar .avatar-placeholder",
+];
 const BASE_RING_INNER_RADIUS = 0.84;
 const BASE_RING_OUTER_RADIUS = 1;
 const ACCENT_ARC_LENGTH = Math.PI * 0.72;
@@ -26,7 +29,14 @@ function getOverlayRect(root) {
 }
 
 function getTargetElement() {
-  return document.querySelector(AVATAR_SELECTOR);
+  for (const selector of AVATAR_SELECTORS) {
+    const target = document.querySelector(selector);
+    if (target) {
+      return target;
+    }
+  }
+
+  return null;
 }
 
 function getHighlightColor() {

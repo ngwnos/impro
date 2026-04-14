@@ -55592,7 +55592,11 @@ var WebGPURenderer = class extends Renderer {
 
 // clientLibs/threeOverlay.js
 var MAX_PIXEL_RATIO = 2;
-var AVATAR_SELECTOR = ".sidebar-profile-avatar [data-testid='avatar-image'], .sidebar-profile-avatar .avatar-placeholder";
+var AVATAR_SELECTORS = [
+  ".sidebar-profile-avatar .avatar-link",
+  ".sidebar-profile-avatar [data-testid='avatar']",
+  ".sidebar-profile-avatar .avatar-placeholder"
+];
 var BASE_RING_INNER_RADIUS = 0.84;
 var BASE_RING_OUTER_RADIUS = 1;
 var ACCENT_ARC_LENGTH = Math.PI * 0.72;
@@ -55612,7 +55616,13 @@ function getOverlayRect(root) {
   };
 }
 function getTargetElement() {
-  return document.querySelector(AVATAR_SELECTOR);
+  for (const selector of AVATAR_SELECTORS) {
+    const target = document.querySelector(selector);
+    if (target) {
+      return target;
+    }
+  }
+  return null;
 }
 function getHighlightColor() {
   const value = getComputedStyle(document.documentElement).getPropertyValue("--highlight-color").trim();
