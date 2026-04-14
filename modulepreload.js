@@ -5,7 +5,9 @@ import { resolve, parseFromString } from "@import-maps/resolve";
 
 async function getImports(script) {
   const [imports] = await parse(script);
-  return imports.map((imp) => imp.n);
+  return imports
+    .map((imp) => imp.n)
+    .filter((specifier) => typeof specifier === "string" && specifier.length);
 }
 
 class ImportCollector {
@@ -18,6 +20,9 @@ class ImportCollector {
     this.importMap = importMap;
   }
   async visit(specifier, parent) {
+    if (typeof specifier !== "string" || !specifier.length) {
+      return;
+    }
     const doExclude = this.exclude.some((e) => specifier.includes(e));
     if (doExclude) {
       return;

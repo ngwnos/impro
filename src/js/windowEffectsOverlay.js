@@ -1,7 +1,15 @@
-import { createWindowEffectsOverlay } from "/js/lib/three-overlay.js";
-
 let overlayPromise = null;
 let cleanupRegistered = false;
+let overlayModulePromise = null;
+
+async function loadOverlayModule() {
+  if (!overlayModulePromise) {
+    const version = encodeURIComponent(window.env?.gitCommit ?? "dev");
+    overlayModulePromise = import(`/js/lib/three-overlay.js?v=${version}`);
+  }
+
+  return overlayModulePromise;
+}
 
 export async function setUpWindowEffectsOverlay() {
   if (overlayPromise) {
@@ -15,6 +23,7 @@ export async function setUpWindowEffectsOverlay() {
     }
 
     try {
+      const { createWindowEffectsOverlay } = await loadOverlayModule();
       const overlay = await createWindowEffectsOverlay({ root });
       if (!overlay) {
         root.hidden = true;

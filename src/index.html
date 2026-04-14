@@ -63,12 +63,13 @@
         IN_APP_LINK_DOMAINS,
       } from "/js/config.js";
       import { setUpIdentityPrecaching } from "/js/identityPrecaching.js";
-      import { setUpWindowEffectsOverlay } from "/js/windowEffectsOverlay.js";
 
       // Dev tools
       import "/js/perf.js";
       import { enableErrorLogs } from "/js/errorLogs.js";
 
+      const { setUpWindowEffectsOverlay } =
+        await import("/js/windowEffectsOverlay.js?v={{ gitCommit }}");
       void setUpWindowEffectsOverlay();
 
       if (window.env.environment === "development") {
