@@ -343,9 +343,15 @@ export async function createWindowEffectsOverlay({ root }) {
   let burnReadRenderTarget = burnRenderTargetA;
   let burnWriteRenderTarget = burnRenderTargetB;
   const burnTextureUvNode = vec2(uv().x, float(1).sub(uv().y));
-  const burnTextureNode = textureNode(burnReadRenderTarget.texture);
+  const burnMaskTextureNode = textureNode(
+    burnReadRenderTarget.texture,
+    burnTextureUvNode,
+  );
+  const burnAccumulationTextureNode = textureNode(
+    burnReadRenderTarget.texture,
+    burnTextureUvNode,
+  );
   const burnCursorUvNode = uniform(new THREE.Vector2(0.5, 0.5));
-  const burnScrollUvDeltaNode = uniform(new THREE.Vector2(0, 0));
   const burnAspectNode = uniform(1);
   const burnRadiusNode = uniform(0.02);
   const burnDepositNode = uniform(0);
@@ -359,23 +365,7 @@ export async function createWindowEffectsOverlay({ root }) {
   const burnUpdateMaterial = new THREE.NodeMaterial();
   burnUpdateMaterial.name = "LaserBurnUpdate";
   burnUpdateMaterial.fragmentNode = Fn(() => {
-    const previousBurnUv = vec2(
-      uv().x.add(burnScrollUvDeltaNode.x),
-      uv().y.add(burnScrollUvDeltaNode.y),
-    );
-    const previousBurnTextureUv = vec2(
-      previousBurnUv.x,
-      float(1).sub(previousBurnUv.y),
-    );
-    const previousBurnInBounds = previousBurnUv.x
-      .greaterThanEqual(0)
-      .and(previousBurnUv.x.lessThanEqual(1))
-      .and(previousBurnUv.y.greaterThanEqual(0))
-      .and(previousBurnUv.y.lessThanEqual(1));
-    const previousMask = previousBurnInBounds.select(
-      burnTextureNode.sample(previousBurnTextureUv).r,
-      float(0),
-    );
+    const previousMask = burnAccumulationTextureNode.sample().r;
     const delta = uv().sub(burnCursorUvNode);
     const correctedDelta = vec2(delta.x.mul(burnAspectNode), delta.y);
     const distanceToCursor = length(correctedDelta);
@@ -408,7 +398,7 @@ export async function createWindowEffectsOverlay({ root }) {
   );
   const bloomAlpha = luminance(bloomPass.rgb).mul(0.6).clamp(0, 1);
   const sceneAlpha = scenePassColor.a.clamp(0, 1);
-  const burnMask = burnTextureNode.sample(burnTextureUvNode).r.clamp(0, 1);
+  const burnMask = burnMaskTextureNode.r.clamp(0, 1);
   const sceneBloomAlpha = sceneAlpha.max(bloomAlpha).clamp(0, 1);
   const sceneBloomPremultipliedColor = scenePassColor.rgb
     .mul(sceneAlpha)
@@ -424,8 +414,6 @@ export async function createWindowEffectsOverlay({ root }) {
   let laserPointerActive = false;
   let cursorClientX = getViewportWidth() * DEFAULT_CURSOR_POSITION.x;
   let cursorClientY = getViewportHeight() * DEFAULT_CURSOR_POSITION.y;
-  let previousScrollX = window.scrollX;
-  let previousScrollY = window.scrollY;
   let previousFocusedElement = null;
   let currentBloomStrength = 0;
   bloomPass.strength.value = currentBloomStrength;
@@ -482,15 +470,6 @@ export async function createWindowEffectsOverlay({ root }) {
       burnTargetsNeedClear = false;
     }
 
-    const scrollDeltaX = window.scrollX - previousScrollX;
-    const scrollDeltaY = window.scrollY - previousScrollY;
-    previousScrollX = window.scrollX;
-    previousScrollY = window.scrollY;
-
-    burnScrollUvDeltaNode.value.set(
-      scrollDeltaX / overlayRect.width,
-      -scrollDeltaY / overlayRect.height,
-    );
     burnAspectNode.value = overlayRect.width / overlayRect.height;
     burnRadiusNode.value = BURN_SPLAT_RADIUS_PX / overlayRect.height;
     burnDepositNode.value = BURN_SPLAT_DEPOSIT_RATE * deltaTime;
@@ -510,7 +489,8 @@ export async function createWindowEffectsOverlay({ root }) {
       burnWriteRenderTarget,
       burnReadRenderTarget,
     ];
-    burnTextureNode.value = burnReadRenderTarget.texture;
+    burnMaskTextureNode.value = burnReadRenderTarget.texture;
+    burnAccumulationTextureNode.value = burnReadRenderTarget.texture;
   };
 
   const setLaserModeEnabled = (enabled) => {
