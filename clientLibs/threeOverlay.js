@@ -404,13 +404,16 @@ export async function createWindowEffectsOverlay({ root }) {
   const bloomAlpha = luminance(bloomPass.rgb).mul(0.6).clamp(0, 1);
   const sceneAlpha = scenePassColor.a.clamp(0, 1);
   const burnMask = burnMaskTextureNode.r.clamp(0, 1);
-  const burnAlpha = burnMask.mul(sceneAlpha.oneMinus()).clamp(0, 1);
-  const baseAlpha = sceneAlpha.add(burnAlpha).clamp(0, 1);
-  const compositeAlpha = baseAlpha.max(bloomAlpha).clamp(0, 1);
-  const compositePremultipliedColor = scenePassColor.rgb
+  const sceneBloomAlpha = sceneAlpha.max(bloomAlpha).clamp(0, 1);
+  const sceneBloomPremultipliedColor = scenePassColor.rgb
     .mul(sceneAlpha)
-    .add(burnBackgroundColorNode.mul(burnAlpha))
-    .add(bloomPass.rgb.mul(compositeAlpha));
+    .add(bloomPass.rgb.mul(bloomAlpha));
+  const compositeAlpha = sceneBloomAlpha
+    .add(burnMask.mul(sceneBloomAlpha.oneMinus()))
+    .clamp(0, 1);
+  const compositePremultipliedColor = sceneBloomPremultipliedColor
+    .mul(burnMask.oneMinus())
+    .add(burnBackgroundColorNode.mul(burnMask));
   const compositeColor = compositePremultipliedColor.div(
     max(compositeAlpha, float(1e-5)),
   );
