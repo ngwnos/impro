@@ -12674,6 +12674,206 @@ var InstancedBufferAttribute = class extends BufferAttribute {
     return data;
   }
 };
+var _instanceLocalMatrix = /* @__PURE__ */ new Matrix4();
+var _instanceWorldMatrix = /* @__PURE__ */ new Matrix4();
+var _instanceIntersects = [];
+var _box3 = /* @__PURE__ */ new Box3();
+var _identity = /* @__PURE__ */ new Matrix4();
+var _mesh$1 = /* @__PURE__ */ new Mesh();
+var _sphere$4 = /* @__PURE__ */ new Sphere();
+var InstancedMesh = class extends Mesh {
+  /**
+   * Constructs a new instanced mesh.
+   *
+   * @param {BufferGeometry} [geometry] - The mesh geometry.
+   * @param {Material|Array<Material>} [material] - The mesh material.
+   * @param {number} count - The number of instances.
+   */
+  constructor(geometry, material, count) {
+    super(geometry, material);
+    this.isInstancedMesh = true;
+    this.instanceMatrix = new InstancedBufferAttribute(new Float32Array(count * 16), 16);
+    this.previousInstanceMatrix = null;
+    this.instanceColor = null;
+    this.morphTexture = null;
+    this.count = count;
+    this.boundingBox = null;
+    this.boundingSphere = null;
+    for (let i = 0; i < count; i++) {
+      this.setMatrixAt(i, _identity);
+    }
+  }
+  /**
+   * Computes the bounding box of the instanced mesh, and updates {@link InstancedMesh#boundingBox}.
+   * The bounding box is not automatically computed by the engine; this method must be called by your app.
+   * You may need to recompute the bounding box if an instance is transformed via {@link InstancedMesh#setMatrixAt}.
+   */
+  computeBoundingBox() {
+    const geometry = this.geometry;
+    const count = this.count;
+    if (this.boundingBox === null) {
+      this.boundingBox = new Box3();
+    }
+    if (geometry.boundingBox === null) {
+      geometry.computeBoundingBox();
+    }
+    this.boundingBox.makeEmpty();
+    for (let i = 0; i < count; i++) {
+      this.getMatrixAt(i, _instanceLocalMatrix);
+      _box3.copy(geometry.boundingBox).applyMatrix4(_instanceLocalMatrix);
+      this.boundingBox.union(_box3);
+    }
+  }
+  /**
+   * Computes the bounding sphere of the instanced mesh, and updates {@link InstancedMesh#boundingSphere}
+   * The engine automatically computes the bounding sphere when it is needed, e.g., for ray casting or view frustum culling.
+   * You may need to recompute the bounding sphere if an instance is transformed via {@link InstancedMesh#setMatrixAt}.
+   */
+  computeBoundingSphere() {
+    const geometry = this.geometry;
+    const count = this.count;
+    if (this.boundingSphere === null) {
+      this.boundingSphere = new Sphere();
+    }
+    if (geometry.boundingSphere === null) {
+      geometry.computeBoundingSphere();
+    }
+    this.boundingSphere.makeEmpty();
+    for (let i = 0; i < count; i++) {
+      this.getMatrixAt(i, _instanceLocalMatrix);
+      _sphere$4.copy(geometry.boundingSphere).applyMatrix4(_instanceLocalMatrix);
+      this.boundingSphere.union(_sphere$4);
+    }
+  }
+  copy(source, recursive) {
+    super.copy(source, recursive);
+    this.instanceMatrix.copy(source.instanceMatrix);
+    if (source.previousInstanceMatrix !== null) this.previousInstanceMatrix = source.previousInstanceMatrix.clone();
+    if (source.morphTexture !== null) this.morphTexture = source.morphTexture.clone();
+    if (source.instanceColor !== null) this.instanceColor = source.instanceColor.clone();
+    this.count = source.count;
+    if (source.boundingBox !== null) this.boundingBox = source.boundingBox.clone();
+    if (source.boundingSphere !== null) this.boundingSphere = source.boundingSphere.clone();
+    return this;
+  }
+  /**
+   * Gets the color of the defined instance.
+   *
+   * @param {number} index - The instance index.
+   * @param {Color} color - The target object that is used to store the method's result.
+   */
+  getColorAt(index, color3) {
+    color3.fromArray(this.instanceColor.array, index * 3);
+  }
+  /**
+   * Gets the local transformation matrix of the defined instance.
+   *
+   * @param {number} index - The instance index.
+   * @param {Matrix4} matrix - The target object that is used to store the method's result.
+   */
+  getMatrixAt(index, matrix) {
+    matrix.fromArray(this.instanceMatrix.array, index * 16);
+  }
+  /**
+   * Gets the morph target weights of the defined instance.
+   *
+   * @param {number} index - The instance index.
+   * @param {Mesh} object - The target object that is used to store the method's result.
+   */
+  getMorphAt(index, object) {
+    const objectInfluences = object.morphTargetInfluences;
+    const array3 = this.morphTexture.source.data.data;
+    const len = objectInfluences.length + 1;
+    const dataIndex = index * len + 1;
+    for (let i = 0; i < objectInfluences.length; i++) {
+      objectInfluences[i] = array3[dataIndex + i];
+    }
+  }
+  raycast(raycaster, intersects) {
+    const matrixWorld = this.matrixWorld;
+    const raycastTimes = this.count;
+    _mesh$1.geometry = this.geometry;
+    _mesh$1.material = this.material;
+    if (_mesh$1.material === void 0) return;
+    if (this.boundingSphere === null) this.computeBoundingSphere();
+    _sphere$4.copy(this.boundingSphere);
+    _sphere$4.applyMatrix4(matrixWorld);
+    if (raycaster.ray.intersectsSphere(_sphere$4) === false) return;
+    for (let instanceId = 0; instanceId < raycastTimes; instanceId++) {
+      this.getMatrixAt(instanceId, _instanceLocalMatrix);
+      _instanceWorldMatrix.multiplyMatrices(matrixWorld, _instanceLocalMatrix);
+      _mesh$1.matrixWorld = _instanceWorldMatrix;
+      _mesh$1.raycast(raycaster, _instanceIntersects);
+      for (let i = 0, l = _instanceIntersects.length; i < l; i++) {
+        const intersect = _instanceIntersects[i];
+        intersect.instanceId = instanceId;
+        intersect.object = this;
+        intersects.push(intersect);
+      }
+      _instanceIntersects.length = 0;
+    }
+  }
+  /**
+   * Sets the given color to the defined instance. Make sure you set the `needsUpdate` flag of
+   * {@link InstancedMesh#instanceColor} to `true` after updating all the colors.
+   *
+   * @param {number} index - The instance index.
+   * @param {Color} color - The instance color.
+   */
+  setColorAt(index, color3) {
+    if (this.instanceColor === null) {
+      this.instanceColor = new InstancedBufferAttribute(new Float32Array(this.instanceMatrix.count * 3).fill(1), 3);
+    }
+    color3.toArray(this.instanceColor.array, index * 3);
+  }
+  /**
+   * Sets the given local transformation matrix to the defined instance. Make sure you set the `needsUpdate` flag of
+   * {@link InstancedMesh#instanceMatrix} to `true` after updating all the colors.
+   *
+   * @param {number} index - The instance index.
+   * @param {Matrix4} matrix - The local transformation.
+   */
+  setMatrixAt(index, matrix) {
+    matrix.toArray(this.instanceMatrix.array, index * 16);
+  }
+  /**
+   * Sets the morph target weights to the defined instance. Make sure you set the `needsUpdate` flag of
+   * {@link InstancedMesh#morphTexture} to `true` after updating all the influences.
+   *
+   * @param {number} index - The instance index.
+   * @param {Mesh} object -  A mesh which `morphTargetInfluences` property containing the morph target weights
+   * of a single instance.
+   */
+  setMorphAt(index, object) {
+    const objectInfluences = object.morphTargetInfluences;
+    const len = objectInfluences.length + 1;
+    if (this.morphTexture === null) {
+      this.morphTexture = new DataTexture(new Float32Array(len * this.count), len, this.count, RedFormat, FloatType);
+    }
+    const array3 = this.morphTexture.source.data.data;
+    let morphInfluencesSum = 0;
+    for (let i = 0; i < objectInfluences.length; i++) {
+      morphInfluencesSum += objectInfluences[i];
+    }
+    const morphBaseInfluence = this.geometry.morphTargetsRelative ? 1 : 1 - morphInfluencesSum;
+    const dataIndex = len * index;
+    array3[dataIndex] = morphBaseInfluence;
+    array3.set(objectInfluences, dataIndex + 1);
+  }
+  updateMorphTargets() {
+  }
+  /**
+   * Frees the GPU-related resources allocated by this instance. Call this
+   * method whenever this instance is no longer used in your app.
+   */
+  dispose() {
+    this.dispatchEvent({ type: "dispose" });
+    if (this.morphTexture !== null) {
+      this.morphTexture.dispose();
+      this.morphTexture = null;
+    }
+  }
+};
 var _vector1 = /* @__PURE__ */ new Vector3();
 var _vector2 = /* @__PURE__ */ new Vector3();
 var _normalMatrix = /* @__PURE__ */ new Matrix3();
@@ -13735,6 +13935,69 @@ var BoxGeometry = class _BoxGeometry extends BufferGeometry {
     return new _BoxGeometry(data.width, data.height, data.depth, data.widthSegments, data.heightSegments, data.depthSegments);
   }
 };
+var CircleGeometry = class _CircleGeometry extends BufferGeometry {
+  /**
+   * Constructs a new circle geometry.
+   *
+   * @param {number} [radius=1] - Radius of the circle.
+   * @param {number} [segments=32] - Number of segments (triangles), minimum = `3`.
+   * @param {number} [thetaStart=0] - Start angle for first segment in radians.
+   * @param {number} [thetaLength=Math.PI*2] - The central angle, often called theta,
+   * of the circular sector in radians. The default value results in a complete circle.
+   */
+  constructor(radius = 1, segments = 32, thetaStart = 0, thetaLength = Math.PI * 2) {
+    super();
+    this.type = "CircleGeometry";
+    this.parameters = {
+      radius,
+      segments,
+      thetaStart,
+      thetaLength
+    };
+    segments = Math.max(3, segments);
+    const indices = [];
+    const vertices = [];
+    const normals = [];
+    const uvs = [];
+    const vertex = new Vector3();
+    const uv3 = new Vector2();
+    vertices.push(0, 0, 0);
+    normals.push(0, 0, 1);
+    uvs.push(0.5, 0.5);
+    for (let s = 0, i = 3; s <= segments; s++, i += 3) {
+      const segment = thetaStart + s / segments * thetaLength;
+      vertex.x = radius * Math.cos(segment);
+      vertex.y = radius * Math.sin(segment);
+      vertices.push(vertex.x, vertex.y, vertex.z);
+      normals.push(0, 0, 1);
+      uv3.x = (vertices[i] / radius + 1) / 2;
+      uv3.y = (vertices[i + 1] / radius + 1) / 2;
+      uvs.push(uv3.x, uv3.y);
+    }
+    for (let i = 1; i <= segments; i++) {
+      indices.push(i, i + 1, 0);
+    }
+    this.setIndex(indices);
+    this.setAttribute("position", new Float32BufferAttribute(vertices, 3));
+    this.setAttribute("normal", new Float32BufferAttribute(normals, 3));
+    this.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+  }
+  copy(source) {
+    super.copy(source);
+    this.parameters = Object.assign({}, source.parameters);
+    return this;
+  }
+  /**
+   * Factory method for creating an instance of this class from the given
+   * JSON object.
+   *
+   * @param {Object} data - A JSON object representing the serialized geometry.
+   * @return {CircleGeometry} A new instance.
+   */
+  static fromJSON(data) {
+    return new _CircleGeometry(data.radius, data.segments, data.thetaStart, data.thetaLength);
+  }
+};
 var CylinderGeometry = class _CylinderGeometry extends BufferGeometry {
   /**
    * Constructs a new cylinder geometry.
@@ -13954,84 +14217,6 @@ var PlaneGeometry = class _PlaneGeometry extends BufferGeometry {
    */
   static fromJSON(data) {
     return new _PlaneGeometry(data.width, data.height, data.widthSegments, data.heightSegments);
-  }
-};
-var RingGeometry = class _RingGeometry extends BufferGeometry {
-  /**
-   * Constructs a new ring geometry.
-   *
-   * @param {number} [innerRadius=0.5] - The inner radius of the ring.
-   * @param {number} [outerRadius=1] - The outer radius of the ring.
-   * @param {number} [thetaSegments=32] - Number of segments. A higher number means the ring will be more round. Minimum is `3`.
-   * @param {number} [phiSegments=1] - Number of segments per ring segment. Minimum is `1`.
-   * @param {number} [thetaStart=0] - Starting angle in radians.
-   * @param {number} [thetaLength=Math.PI*2] - Central angle in radians.
-   */
-  constructor(innerRadius = 0.5, outerRadius = 1, thetaSegments = 32, phiSegments = 1, thetaStart = 0, thetaLength = Math.PI * 2) {
-    super();
-    this.type = "RingGeometry";
-    this.parameters = {
-      innerRadius,
-      outerRadius,
-      thetaSegments,
-      phiSegments,
-      thetaStart,
-      thetaLength
-    };
-    thetaSegments = Math.max(3, thetaSegments);
-    phiSegments = Math.max(1, phiSegments);
-    const indices = [];
-    const vertices = [];
-    const normals = [];
-    const uvs = [];
-    let radius = innerRadius;
-    const radiusStep = (outerRadius - innerRadius) / phiSegments;
-    const vertex = new Vector3();
-    const uv3 = new Vector2();
-    for (let j = 0; j <= phiSegments; j++) {
-      for (let i = 0; i <= thetaSegments; i++) {
-        const segment = thetaStart + i / thetaSegments * thetaLength;
-        vertex.x = radius * Math.cos(segment);
-        vertex.y = radius * Math.sin(segment);
-        vertices.push(vertex.x, vertex.y, vertex.z);
-        normals.push(0, 0, 1);
-        uv3.x = (vertex.x / outerRadius + 1) / 2;
-        uv3.y = (vertex.y / outerRadius + 1) / 2;
-        uvs.push(uv3.x, uv3.y);
-      }
-      radius += radiusStep;
-    }
-    for (let j = 0; j < phiSegments; j++) {
-      const thetaSegmentLevel = j * (thetaSegments + 1);
-      for (let i = 0; i < thetaSegments; i++) {
-        const segment = i + thetaSegmentLevel;
-        const a = segment;
-        const b = segment + thetaSegments + 1;
-        const c = segment + thetaSegments + 2;
-        const d = segment + 1;
-        indices.push(a, b, d);
-        indices.push(b, c, d);
-      }
-    }
-    this.setIndex(indices);
-    this.setAttribute("position", new Float32BufferAttribute(vertices, 3));
-    this.setAttribute("normal", new Float32BufferAttribute(normals, 3));
-    this.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
-  }
-  copy(source) {
-    super.copy(source);
-    this.parameters = Object.assign({}, source.parameters);
-    return this;
-  }
-  /**
-   * Factory method for creating an instance of this class from the given
-   * JSON object.
-   *
-   * @param {Object} data - A JSON object representing the serialized geometry.
-   * @return {RingGeometry} A new instance.
-   */
-  static fromJSON(data) {
-    return new _RingGeometry(data.innerRadius, data.outerRadius, data.thetaSegments, data.phiSegments, data.thetaStart, data.thetaLength);
   }
 };
 var SphereGeometry = class _SphereGeometry extends BufferGeometry {
@@ -60860,15 +61045,12 @@ var bloom = (node, strength, radius, threshold) => new BloomNode(nodeObject2(nod
 var MAX_PIXEL_RATIO = 2;
 var SIDEBAR_AVATAR_SELECTOR = ".sidebar-profile-avatar";
 var VISUAL_AVATAR_SELECTOR = ".avatar-image, .avatar-placeholder, .avatar-link, [data-testid='avatar']";
-var BASE_RING_INNER_RADIUS = 0.84;
-var BASE_RING_OUTER_RADIUS = 1;
-var ACCENT_ARC_LENGTH = Math.PI * 0.72;
 var TARGET_PADDING_PX = 5;
 var TARGET_PADDING_RATIO = 0.1;
-var RING_PULSE_SCALE = 0.04;
 var LASER_LINE_COUNT = 18;
 var LASER_TOGGLE_CODE = "Backquote";
 var LASER_ORIGIN_RADIUS_SCALE = 1.04;
+var LASER_DOT_RADIUS_PX = 3.5;
 var DEFAULT_CURSOR_POSITION = { x: 0.5, y: 0.5 };
 var LASER_COLOR = "#ff3b30";
 var LASER_COLOR_INTENSITY = 3.2;
@@ -60968,10 +61150,6 @@ function getTargetCandidate(root) {
   }).filter(Boolean).sort((a, b) => b.score - a.score);
   return candidates[0] ?? null;
 }
-function getHighlightColor() {
-  const value = getComputedStyle(document.documentElement).getPropertyValue("--highlight-color").trim();
-  return value || "#006aff";
-}
 function isEditableEventTarget(target) {
   if (!(target instanceof Element)) {
     return false;
@@ -60990,20 +61168,38 @@ function consumeEvent(event) {
 function isLaserToggleEvent(event) {
   return event.code === LASER_TOGGLE_CODE && !event.repeat && !event.metaKey && !event.ctrlKey && !event.altKey;
 }
-function updateLaserPositions(positions, { centerX, centerY, radius, cursorX, cursorY }) {
+function forEachLaserOrigin({ centerX, centerY, radius }, callback) {
   const emissionRadius = Math.max(radius * LASER_ORIGIN_RADIUS_SCALE, 1);
   for (let i = 0; i < LASER_LINE_COUNT; i += 1) {
     const angle = i / LASER_LINE_COUNT * Math.PI * 2 - Math.PI / 2;
     const startX = centerX + Math.cos(angle) * emissionRadius;
     const startY = centerY + Math.sin(angle) * emissionRadius;
-    const offset = i * 6;
-    positions[offset] = startX;
-    positions[offset + 1] = startY;
-    positions[offset + 2] = 0;
-    positions[offset + 3] = cursorX;
-    positions[offset + 4] = cursorY;
-    positions[offset + 5] = 0;
+    callback({ index: i, startX, startY });
   }
+}
+function updateLaserPositions(positions, { centerX, centerY, radius, cursorX, cursorY }) {
+  forEachLaserOrigin(
+    { centerX, centerY, radius },
+    ({ index, startX, startY }) => {
+      const offset = index * 6;
+      positions[offset] = startX;
+      positions[offset + 1] = startY;
+      positions[offset + 2] = 0;
+      positions[offset + 3] = cursorX;
+      positions[offset + 4] = cursorY;
+      positions[offset + 5] = 0;
+    }
+  );
+}
+function updateLaserDotPositions(instancedMesh3, dotTransform, target) {
+  const dotRadius = Math.max(LASER_DOT_RADIUS_PX, target.radius * 0.08);
+  forEachLaserOrigin(target, ({ index, startX, startY }) => {
+    dotTransform.position.set(startX, startY, 0);
+    dotTransform.scale.setScalar(dotRadius);
+    dotTransform.updateMatrix();
+    instancedMesh3.setMatrixAt(index, dotTransform.matrix);
+  });
+  instancedMesh3.instanceMatrix.needsUpdate = true;
 }
 async function createWindowEffectsOverlay({ root }) {
   if (!root || !("gpu" in navigator)) {
@@ -61027,43 +61223,24 @@ async function createWindowEffectsOverlay({ root }) {
   const scene = new Scene();
   const camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
   camera.position.z = 1;
-  const baseColor = new Color(getHighlightColor());
-  const accentColor = baseColor.clone().offsetHSL(0.05, 0.1, 0.12);
   const laserColor = new Color(LASER_COLOR).multiplyScalar(
     LASER_COLOR_INTENSITY
   );
-  const baseRingGeometry = new RingGeometry(
-    BASE_RING_INNER_RADIUS,
-    BASE_RING_OUTER_RADIUS,
-    96
-  );
-  const baseRingMaterial = new MeshBasicMaterial({
-    color: baseColor,
+  const laserDotGeometry = new CircleGeometry(1, 24);
+  const laserDotMaterial = new MeshBasicMaterial({
+    color: laserColor,
     transparent: true,
-    opacity: 0.28,
-    side: DoubleSide
+    opacity: 0.96
   });
-  const baseRing = new Mesh(baseRingGeometry, baseRingMaterial);
-  const accentRingGeometry = new RingGeometry(
-    BASE_RING_INNER_RADIUS,
-    BASE_RING_OUTER_RADIUS,
-    96,
-    1,
-    0,
-    ACCENT_ARC_LENGTH
+  const laserDots = new InstancedMesh(
+    laserDotGeometry,
+    laserDotMaterial,
+    LASER_LINE_COUNT
   );
-  const accentRingMaterial = new MeshBasicMaterial({
-    color: accentColor,
-    transparent: true,
-    opacity: 0.9,
-    side: DoubleSide
-  });
-  const accentRing = new Mesh(accentRingGeometry, accentRingMaterial);
-  const ringGroup = new Group();
-  ringGroup.visible = false;
-  ringGroup.add(baseRing);
-  ringGroup.add(accentRing);
-  scene.add(ringGroup);
+  laserDots.instanceMatrix.setUsage(DynamicDrawUsage);
+  laserDots.visible = false;
+  scene.add(laserDots);
+  const laserDotTransform = new Object3D();
   const laserPositions = new Float32Array(LASER_LINE_COUNT * 2 * 3);
   const laserGeometry = new BufferGeometry();
   laserGeometry.setAttribute(
@@ -61239,9 +61416,7 @@ async function createWindowEffectsOverlay({ root }) {
   });
   window.addEventListener("keydown", handleKeyDown, true);
   window.addEventListener("keyup", handleKeyUp, true);
-  const start = performance.now();
   renderer.setAnimationLoop(() => {
-    const elapsed = (performance.now() - start) * 1e-3;
     const target = getTargetCandidate(root);
     if (target) {
       const { rect } = target;
@@ -61249,29 +61424,24 @@ async function createWindowEffectsOverlay({ root }) {
       const centerX = rect.left + rect.width / 2 - overlayRect.left - overlayRect.width / 2;
       const centerY = overlayRect.top + overlayRect.height / 2 - (rect.top + rect.height / 2);
       const outerRadius = Math.max(rect.width, rect.height) / 2 + Math.max(TARGET_PADDING_PX, rect.width * TARGET_PADDING_RATIO);
-      const pulse = 1 + Math.sin(elapsed * 2.4) * RING_PULSE_SCALE;
-      ringGroup.visible = true;
-      ringGroup.position.set(centerX, centerY, 0);
-      baseRing.scale.setScalar(outerRadius);
-      accentRing.scale.setScalar(outerRadius * pulse);
-      accentRing.rotation.z = elapsed * 0.95;
+      const laserTarget = {
+        centerX,
+        centerY,
+        radius: outerRadius
+      };
+      laserDots.visible = true;
+      updateLaserDotPositions(laserDots, laserDotTransform, laserTarget);
       if (laserModeEnabled && laserPointerActive) {
         const cursorX = cursorClientX - overlayRect.left - overlayRect.width / 2;
         const cursorY = overlayRect.top + overlayRect.height / 2 - cursorClientY;
         laserSegments.visible = true;
-        updateLaserPositions(laserPositions, {
-          centerX,
-          centerY,
-          radius: outerRadius,
-          cursorX,
-          cursorY
-        });
+        updateLaserPositions(laserPositions, { ...laserTarget, cursorX, cursorY });
         laserGeometry.attributes.position.needsUpdate = true;
       } else {
         laserSegments.visible = false;
       }
     } else {
-      ringGroup.visible = false;
+      laserDots.visible = false;
       laserSegments.visible = false;
     }
     renderPipeline.render();
@@ -61292,10 +61462,8 @@ async function createWindowEffectsOverlay({ root }) {
       window.removeEventListener("keydown", handleKeyDown, true);
       window.removeEventListener("keyup", handleKeyUp, true);
       renderer.setAnimationLoop(null);
-      baseRingGeometry.dispose();
-      baseRingMaterial.dispose();
-      accentRingGeometry.dispose();
-      accentRingMaterial.dispose();
+      laserDotGeometry.dispose();
+      laserDotMaterial.dispose();
       laserGeometry.dispose();
       laserMaterial.dispose();
       renderer.dispose();

@@ -6,15 +6,12 @@ const MAX_PIXEL_RATIO = 2;
 const SIDEBAR_AVATAR_SELECTOR = ".sidebar-profile-avatar";
 const VISUAL_AVATAR_SELECTOR =
   ".avatar-image, .avatar-placeholder, .avatar-link, [data-testid='avatar']";
-const BASE_RING_INNER_RADIUS = 0.84;
-const BASE_RING_OUTER_RADIUS = 1;
-const ACCENT_ARC_LENGTH = Math.PI * 0.72;
 const TARGET_PADDING_PX = 5;
 const TARGET_PADDING_RATIO = 0.1;
-const RING_PULSE_SCALE = 0.04;
 const LASER_LINE_COUNT = 18;
 const LASER_TOGGLE_CODE = "Backquote";
 const LASER_ORIGIN_RADIUS_SCALE = 1.04;
+const LASER_DOT_RADIUS_PX = 3.5;
 const DEFAULT_CURSOR_POSITION = { x: 0.5, y: 0.5 };
 const LASER_COLOR = "#ff3b30";
 const LASER_COLOR_INTENSITY = 3.2;
@@ -161,14 +158,6 @@ function getTargetCandidate(root) {
   return candidates[0] ?? null;
 }
 
-function getHighlightColor() {
-  const value = getComputedStyle(document.documentElement)
-    .getPropertyValue("--highlight-color")
-    .trim();
-
-  return value || "#006aff";
-}
-
 function isEditableEventTarget(target) {
   if (!(target instanceof Element)) {
     return false;
@@ -197,25 +186,47 @@ function isLaserToggleEvent(event) {
   );
 }
 
-function updateLaserPositions(
-  positions,
-  { centerX, centerY, radius, cursorX, cursorY },
-) {
+function forEachLaserOrigin({ centerX, centerY, radius }, callback) {
   const emissionRadius = Math.max(radius * LASER_ORIGIN_RADIUS_SCALE, 1);
 
   for (let i = 0; i < LASER_LINE_COUNT; i += 1) {
     const angle = (i / LASER_LINE_COUNT) * Math.PI * 2 - Math.PI / 2;
     const startX = centerX + Math.cos(angle) * emissionRadius;
     const startY = centerY + Math.sin(angle) * emissionRadius;
-    const offset = i * 6;
-
-    positions[offset] = startX;
-    positions[offset + 1] = startY;
-    positions[offset + 2] = 0;
-    positions[offset + 3] = cursorX;
-    positions[offset + 4] = cursorY;
-    positions[offset + 5] = 0;
+    callback({ index: i, startX, startY });
   }
+}
+
+function updateLaserPositions(
+  positions,
+  { centerX, centerY, radius, cursorX, cursorY },
+) {
+  forEachLaserOrigin(
+    { centerX, centerY, radius },
+    ({ index, startX, startY }) => {
+      const offset = index * 6;
+
+      positions[offset] = startX;
+      positions[offset + 1] = startY;
+      positions[offset + 2] = 0;
+      positions[offset + 3] = cursorX;
+      positions[offset + 4] = cursorY;
+      positions[offset + 5] = 0;
+    },
+  );
+}
+
+function updateLaserDotPositions(instancedMesh, dotTransform, target) {
+  const dotRadius = Math.max(LASER_DOT_RADIUS_PX, target.radius * 0.08);
+
+  forEachLaserOrigin(target, ({ index, startX, startY }) => {
+    dotTransform.position.set(startX, startY, 0);
+    dotTransform.scale.setScalar(dotRadius);
+    dotTransform.updateMatrix();
+    instancedMesh.setMatrixAt(index, dotTransform.matrix);
+  });
+
+  instancedMesh.instanceMatrix.needsUpdate = true;
 }
 
 export async function createWindowEffectsOverlay({ root }) {
@@ -243,46 +254,25 @@ export async function createWindowEffectsOverlay({ root }) {
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
   camera.position.z = 1;
 
-  const baseColor = new THREE.Color(getHighlightColor());
-  const accentColor = baseColor.clone().offsetHSL(0.05, 0.1, 0.12);
   const laserColor = new THREE.Color(LASER_COLOR).multiplyScalar(
     LASER_COLOR_INTENSITY,
   );
 
-  const baseRingGeometry = new THREE.RingGeometry(
-    BASE_RING_INNER_RADIUS,
-    BASE_RING_OUTER_RADIUS,
-    96,
-  );
-  const baseRingMaterial = new THREE.MeshBasicMaterial({
-    color: baseColor,
+  const laserDotGeometry = new THREE.CircleGeometry(1, 24);
+  const laserDotMaterial = new THREE.MeshBasicMaterial({
+    color: laserColor,
     transparent: true,
-    opacity: 0.28,
-    side: THREE.DoubleSide,
+    opacity: 0.96,
   });
-  const baseRing = new THREE.Mesh(baseRingGeometry, baseRingMaterial);
-
-  const accentRingGeometry = new THREE.RingGeometry(
-    BASE_RING_INNER_RADIUS,
-    BASE_RING_OUTER_RADIUS,
-    96,
-    1,
-    0,
-    ACCENT_ARC_LENGTH,
+  const laserDots = new THREE.InstancedMesh(
+    laserDotGeometry,
+    laserDotMaterial,
+    LASER_LINE_COUNT,
   );
-  const accentRingMaterial = new THREE.MeshBasicMaterial({
-    color: accentColor,
-    transparent: true,
-    opacity: 0.9,
-    side: THREE.DoubleSide,
-  });
-  const accentRing = new THREE.Mesh(accentRingGeometry, accentRingMaterial);
-
-  const ringGroup = new THREE.Group();
-  ringGroup.visible = false;
-  ringGroup.add(baseRing);
-  ringGroup.add(accentRing);
-  scene.add(ringGroup);
+  laserDots.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  laserDots.visible = false;
+  scene.add(laserDots);
+  const laserDotTransform = new THREE.Object3D();
 
   const laserPositions = new Float32Array(LASER_LINE_COUNT * 2 * 3);
   const laserGeometry = new THREE.BufferGeometry();
@@ -494,9 +484,7 @@ export async function createWindowEffectsOverlay({ root }) {
   window.addEventListener("keydown", handleKeyDown, true);
   window.addEventListener("keyup", handleKeyUp, true);
 
-  const start = performance.now();
   renderer.setAnimationLoop(() => {
-    const elapsed = (performance.now() - start) * 0.001;
     const target = getTargetCandidate(root);
 
     if (target) {
@@ -509,13 +497,14 @@ export async function createWindowEffectsOverlay({ root }) {
       const outerRadius =
         Math.max(rect.width, rect.height) / 2 +
         Math.max(TARGET_PADDING_PX, rect.width * TARGET_PADDING_RATIO);
-      const pulse = 1 + Math.sin(elapsed * 2.4) * RING_PULSE_SCALE;
+      const laserTarget = {
+        centerX,
+        centerY,
+        radius: outerRadius,
+      };
 
-      ringGroup.visible = true;
-      ringGroup.position.set(centerX, centerY, 0);
-      baseRing.scale.setScalar(outerRadius);
-      accentRing.scale.setScalar(outerRadius * pulse);
-      accentRing.rotation.z = elapsed * 0.95;
+      laserDots.visible = true;
+      updateLaserDotPositions(laserDots, laserDotTransform, laserTarget);
 
       if (laserModeEnabled && laserPointerActive) {
         const cursorX =
@@ -525,9 +514,7 @@ export async function createWindowEffectsOverlay({ root }) {
 
         laserSegments.visible = true;
         updateLaserPositions(laserPositions, {
-          centerX,
-          centerY,
-          radius: outerRadius,
+          ...laserTarget,
           cursorX,
           cursorY,
         });
@@ -536,7 +523,7 @@ export async function createWindowEffectsOverlay({ root }) {
         laserSegments.visible = false;
       }
     } else {
-      ringGroup.visible = false;
+      laserDots.visible = false;
       laserSegments.visible = false;
     }
 
@@ -559,10 +546,8 @@ export async function createWindowEffectsOverlay({ root }) {
       window.removeEventListener("keydown", handleKeyDown, true);
       window.removeEventListener("keyup", handleKeyUp, true);
       renderer.setAnimationLoop(null);
-      baseRingGeometry.dispose();
-      baseRingMaterial.dispose();
-      accentRingGeometry.dispose();
-      accentRingMaterial.dispose();
+      laserDotGeometry.dispose();
+      laserDotMaterial.dispose();
       laserGeometry.dispose();
       laserMaterial.dispose();
       renderer.dispose();
