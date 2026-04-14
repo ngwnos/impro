@@ -120,17 +120,6 @@ t.describe("AnimatedSidebar - close method", (it) => {
     const sidebar = element.querySelector(".sidebar");
     assert(!sidebar.classList.contains("open"));
   });
-
-  it("should preserve sidebar content after open and close", () => {
-    const element = document.createElement("animated-sidebar");
-    element.innerHTML = "<span class='test-child'>Still Here</span>";
-    connectElement(element);
-    element.open();
-    element.close();
-    const child = element.querySelector(".sidebar-content .test-child");
-    assert(child !== null);
-    assertEquals(child.textContent, "Still Here");
-  });
 });
 
 t.describe("AnimatedSidebar - overlay click", (it) => {

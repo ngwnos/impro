@@ -37,16 +37,6 @@ function showAboutModal() {
   });
 }
 
-function closeSidebarIfOverlay(sidebar) {
-  if (!sidebar) {
-    return;
-  }
-
-  if (window.innerWidth < 800) {
-    sidebar.close();
-  }
-}
-
 function sidebarNavTemplate({ menuItems, activeNavItem, onClickActiveItem }) {
   return html`
     <nav class="sidebar-nav" data-testid="sidebar-nav">
@@ -71,7 +61,7 @@ function sidebarNavTemplate({ menuItems, activeNavItem, onClickActiveItem }) {
               }
               // Close sidebar
               const sidebar = this.closest("animated-sidebar");
-              closeSidebarIfOverlay(sidebar);
+              sidebar.close();
             }}
           >
             <span class="sidebar-nav-icon"
@@ -244,7 +234,7 @@ export function sidebarTemplate({
             @click=${(e) => {
               if (currentUser) {
                 const sidebar = e.target.closest("animated-sidebar");
-                closeSidebarIfOverlay(sidebar);
+                sidebar.close();
               }
             }}
           >
@@ -261,7 +251,7 @@ export function sidebarTemplate({
             @click=${(e) => {
               if (currentUser) {
                 const sidebar = e.target.closest("animated-sidebar");
-                closeSidebarIfOverlay(sidebar);
+                sidebar.close();
               }
             }}
           >

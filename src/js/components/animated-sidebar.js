@@ -10,40 +10,36 @@ class AnimatedSidebar extends Component {
     this.scrollLock = new ScrollLock(this);
     this.isOpen = false;
     this._children = getChildrenFragment(this);
+    this.innerHTML = "";
     this.render();
     this._initialized = true;
   }
 
   render() {
     render(
-      html`<div class="sidebar-overlay" @click=${() => this.close()}></div>
-        <aside class="sidebar">
+      html`<div
+          class="sidebar-overlay ${this.isOpen ? "open" : ""}"
+          @click=${() => this.close()}
+        ></div>
+        <aside class="sidebar ${this.isOpen ? "open" : ""}">
           <div class="sidebar-content"></div>
         </aside>`,
       this,
     );
-    this.sidebarOverlay = this.querySelector(".sidebar-overlay");
-    this.sidebar = this.querySelector(".sidebar");
-    this.sidebarContent = this.querySelector(".sidebar-content");
-    this.sidebarContent.appendChild(this._children);
-    this.syncState();
-  }
-
-  syncState() {
-    this.sidebarOverlay?.classList.toggle("open", this.isOpen);
-    this.sidebar?.classList.toggle("open", this.isOpen);
+    const sidebarContent = this.querySelector(".sidebar-content");
+    sidebarContent.appendChild(this._children);
   }
 
   open() {
     this.isOpen = true;
     this.scrollLock.lock();
-    this.syncState();
+    this.render();
   }
 
   close() {
     this.isOpen = false;
     this.scrollLock.unlock();
-    this.syncState();
+    this.render();
   }
 }
 
