@@ -6,7 +6,6 @@ import {
   float,
   Fn,
   luminance,
-  max,
   smoothstep,
   texture as textureNode,
   uniform,
@@ -410,10 +409,7 @@ export async function createWindowEffectsOverlay({ root }) {
   const compositePremultipliedColor = sceneBloomPremultipliedColor
     .mul(burnMask.oneMinus())
     .add(burnBackgroundColorNode.mul(burnMask));
-  const compositeColor = compositePremultipliedColor.div(
-    max(compositeAlpha, float(1e-5)),
-  );
-  renderPipeline.outputNode = vec4(compositeColor, compositeAlpha);
+  renderPipeline.outputNode = vec4(compositePremultipliedColor, compositeAlpha);
 
   let laserModeEnabled = false;
   let laserPointerActive = false;
