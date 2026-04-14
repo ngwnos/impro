@@ -61058,6 +61058,7 @@ var LASER_COLOR_INTENSITY = 3.2;
 var LASER_BLOOM_STRENGTH = 1.6;
 var LASER_BLOOM_RADIUS = 0.28;
 var LASER_BLOOM_THRESHOLD = 0;
+var LASER_BLOOM_RAMP_SPEED = 8;
 function getPixelRatio() {
   return Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
 }
@@ -61276,6 +61277,8 @@ async function createWindowEffectsOverlay({ root }) {
   let cursorClientX = getViewportWidth() * DEFAULT_CURSOR_POSITION.x;
   let cursorClientY = getViewportHeight() * DEFAULT_CURSOR_POSITION.y;
   let previousFocusedElement = null;
+  let currentBloomStrength = 0;
+  bloomPass.strength.value = currentBloomStrength;
   const resize = () => {
     const { width, height } = getOverlayRect(root);
     renderer.setPixelRatio(getPixelRatio());
@@ -61418,8 +61421,23 @@ async function createWindowEffectsOverlay({ root }) {
   window.addEventListener("keydown", handleKeyDown, true);
   window.addEventListener("keyup", handleKeyUp, true);
   const startTime = performance.now();
+  let previousFrameTime = startTime;
   renderer.setAnimationLoop(() => {
-    const elapsed = (performance.now() - startTime) * 1e-3;
+    const now = performance.now();
+    const elapsed = (now - startTime) * 1e-3;
+    const deltaTime3 = Math.min((now - previousFrameTime) * 1e-3, 0.1);
+    previousFrameTime = now;
+    const targetBloomStrength = laserModeEnabled ? LASER_BLOOM_STRENGTH : 0;
+    const bloomBlend = 1 - Math.exp(-LASER_BLOOM_RAMP_SPEED * deltaTime3);
+    currentBloomStrength = MathUtils.lerp(
+      currentBloomStrength,
+      targetBloomStrength,
+      bloomBlend
+    );
+    if (Math.abs(currentBloomStrength - targetBloomStrength) < 1e-3) {
+      currentBloomStrength = targetBloomStrength;
+    }
+    bloomPass.strength.value = currentBloomStrength;
     const target = getTargetCandidate(root);
     if (target) {
       const { rect } = target;
