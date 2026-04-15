@@ -1230,7 +1230,7 @@ body.scroll-locked header {
 }
 
 .sidebar-tools {
-  display: none;
+  display: flex;
   margin: 14px 6px 0;
   flex-direction: column;
   gap: 4px;
@@ -1265,12 +1265,6 @@ body.scroll-locked header {
 .sidebar-tool-button:focus-visible {
   outline: 2px solid var(--highlight-color);
   outline-offset: -2px;
-}
-
-@media (min-width: 800px) {
-  .sidebar-tools {
-    display: flex;
-  }
 }
 
 @media (min-width: 1200px) {
