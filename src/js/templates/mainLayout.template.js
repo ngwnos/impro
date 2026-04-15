@@ -43,6 +43,7 @@ export function mainLayoutTemplate({
       <div class="view-column-center" data-testid="view-column-center">
         ${children}
       </div>
+      <div class="view-column-right" aria-hidden="true"></div>
     </div>
     ${footerTemplate({
       isAuthenticated,
