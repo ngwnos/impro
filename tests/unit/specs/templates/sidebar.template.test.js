@@ -2,11 +2,6 @@ import { TestSuite } from "../../testSuite.js";
 import { assert, assertEquals } from "../../testHelpers.js";
 import { sidebarTemplate } from "/js/templates/sidebar.template.js";
 import { render } from "/js/lib/lit-html.js";
-import {
-  WINDOW_EFFECT_TOOLS,
-  getActiveWindowEffectTool,
-  setActiveWindowEffectTool,
-} from "/js/windowEffectsOverlay.js";
 
 const t = new TestSuite("sidebarTemplate");
 
@@ -356,56 +351,6 @@ t.describe("sidebarTemplate - compose button", (it) => {
     render(result, container);
     container.querySelector("[data-testid='sidebar-compose-button']").click();
     assert(clicked);
-  });
-});
-
-t.describe("sidebarTemplate - tools", (it) => {
-  it("should render the tools section when authenticated", () => {
-    setActiveWindowEffectTool(null);
-    const result = sidebarTemplate({
-      isAuthenticated: true,
-      currentUser: mockUser,
-    });
-    const container = document.createElement("div");
-    render(result, container);
-    assert(container.querySelector("[data-testid='sidebar-tools']") !== null);
-    assert(
-      container.querySelector("[data-testid='window-tool-laser']") !== null,
-    );
-    assert(
-      container.querySelector("[data-testid='window-tool-basketballize']") !==
-        null,
-    );
-  });
-
-  it("should mark the active tool as selected", () => {
-    setActiveWindowEffectTool(WINDOW_EFFECT_TOOLS.LASER);
-    const result = sidebarTemplate({
-      isAuthenticated: true,
-      currentUser: mockUser,
-    });
-    const container = document.createElement("div");
-    render(result, container);
-    assert(
-      container
-        .querySelector("[data-testid='window-tool-laser']")
-        .classList.contains("selected"),
-    );
-    setActiveWindowEffectTool(null);
-  });
-
-  it("should toggle a tool when clicked", () => {
-    setActiveWindowEffectTool(null);
-    const result = sidebarTemplate({
-      isAuthenticated: true,
-      currentUser: mockUser,
-    });
-    const container = document.createElement("div");
-    render(result, container);
-    container.querySelector("[data-testid='window-tool-laser']").click();
-    assertEquals(getActiveWindowEffectTool(), WINDOW_EFFECT_TOOLS.LASER);
-    container.querySelector("[data-testid='window-tool-laser']").click();
-    assertEquals(getActiveWindowEffectTool(), null);
   });
 });
 

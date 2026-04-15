@@ -5,11 +5,6 @@ import {
   formatLargeNumber,
   formatNumNotifications,
 } from "/js/utils.js";
-import {
-  WINDOW_EFFECT_TOOLS,
-  getActiveWindowEffectTool,
-  toggleWindowEffectTool,
-} from "/js/windowEffectsOverlay.js";
 import { homeIconTemplate } from "/js/templates/icons/homeIcon.template.js";
 import { userIconTemplate } from "/js/templates/icons/userIcon.template.js";
 import { searchIconTemplate } from "/js/templates/icons/searchIcon.template.js";
@@ -40,54 +35,6 @@ function showAboutModal() {
     </div>`,
     confirmButtonText: "Got it!",
   });
-}
-
-const WINDOW_EFFECT_TOOL_ITEMS = [
-  { id: WINDOW_EFFECT_TOOLS.LASER, label: "Laser" },
-  { id: WINDOW_EFFECT_TOOLS.BASKETBALLIZE, label: "Basketballize" },
-];
-
-function syncSidebarToolButtons() {
-  const activeWindowEffectTool = getActiveWindowEffectTool();
-
-  document.querySelectorAll("[data-window-effect-tool]").forEach((button) => {
-    if (!(button instanceof HTMLElement)) {
-      return;
-    }
-
-    button.classList.toggle(
-      "selected",
-      button.dataset.windowEffectTool === activeWindowEffectTool,
-    );
-  });
-}
-
-function sidebarToolsTemplate() {
-  const activeWindowEffectTool = getActiveWindowEffectTool();
-
-  return html`
-    <section class="sidebar-tools" data-testid="sidebar-tools">
-      <div class="sidebar-tools-label">Tools</div>
-      ${WINDOW_EFFECT_TOOL_ITEMS.map(
-        (tool) => html`
-          <button
-            type="button"
-            class=${classnames("sidebar-tool-button", {
-              selected: activeWindowEffectTool === tool.id,
-            })}
-            data-testid="window-tool-${tool.id}"
-            data-window-effect-tool=${tool.id}
-            @click=${() => {
-              toggleWindowEffectTool(tool.id);
-              syncSidebarToolButtons();
-            }}
-          >
-            <span class="sidebar-tool-button-label">${tool.label}</span>
-          </button>
-        `,
-      )}
-    </section>
-  `;
 }
 
 function sidebarNavTemplate({ menuItems, activeNavItem, onClickActiveItem }) {
@@ -328,7 +275,6 @@ export function sidebarTemplate({
             ${editIconTemplate()} <span>New Post</span>
           </button>`
         : ""}
-      ${sidebarToolsTemplate()}
       <div class="sidebar-spacer"></div>
       <div class="sidebar-footer" data-testid="sidebar-footer">
         <a

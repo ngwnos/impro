@@ -21,8 +21,7 @@ const VISUAL_AVATAR_SELECTOR =
 const TARGET_PADDING_PX = 5;
 const TARGET_PADDING_RATIO = 0.1;
 const LASER_LINE_COUNT = 18;
-const WINDOW_TOOLS_PANEL_SELECTOR = "[data-testid='sidebar-tools']";
-const WINDOW_EFFECT_TOOL_LASER = "laser";
+const LASER_TOGGLE_CODE = "Backquote";
 const LASER_ORIGIN_RADIUS_SCALE = 1.04;
 const LASER_DOT_RADIUS_PX = 3.5;
 const LASER_ORBIT_SPEED = 0.9;
@@ -195,10 +194,15 @@ function getBackgroundColor() {
   return "#ffffff";
 }
 
-function isWindowToolsEventTarget(target) {
-  return (
-    target instanceof Element &&
-    Boolean(target.closest(WINDOW_TOOLS_PANEL_SELECTOR))
+function isEditableEventTarget(target) {
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  return Boolean(
+    target.closest(
+      "input, textarea, select, [contenteditable], [contenteditable='true']",
+    ),
   );
 }
 
@@ -206,6 +210,16 @@ function consumeEvent(event) {
   event.preventDefault();
   event.stopPropagation();
   event.stopImmediatePropagation();
+}
+
+function isLaserToggleEvent(event) {
+  return (
+    event.code === LASER_TOGGLE_CODE &&
+    !event.repeat &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey
+  );
 }
 
 function forEachLaserOrigin(
@@ -396,7 +410,6 @@ export async function createWindowEffectsOverlay({ root }) {
   );
   renderPipeline.outputNode = vec4(compositePremultipliedColor, compositeAlpha);
 
-  let activeTool = null;
   let laserModeEnabled = false;
   let laserPointerActive = false;
   let cursorClientX = getViewportWidth() * DEFAULT_CURSOR_POSITION.x;
@@ -488,10 +501,10 @@ export async function createWindowEffectsOverlay({ root }) {
     laserModeEnabled = enabled;
     laserPointerActive = false;
     laserSegments.visible = false;
-    root.style.pointerEvents = "none";
-    root.style.touchAction = "";
-    canvas.style.pointerEvents = "none";
-    canvas.style.touchAction = "";
+    root.style.pointerEvents = enabled ? "auto" : "none";
+    root.style.touchAction = enabled ? "none" : "";
+    canvas.style.pointerEvents = enabled ? "auto" : "none";
+    canvas.style.touchAction = enabled ? "none" : "";
 
     if (enabled) {
       previousFocusedElement =
@@ -515,21 +528,7 @@ export async function createWindowEffectsOverlay({ root }) {
     previousFocusedElement = null;
   };
 
-  const setActiveTool = (toolId) => {
-    activeTool = typeof toolId === "string" ? toolId : null;
-    setLaserModeEnabled(activeTool === WINDOW_EFFECT_TOOL_LASER);
-
-    if (!laserModeEnabled) {
-      laserDots.visible = false;
-      laserSegments.visible = false;
-    }
-  };
-
   const handlePointerMove = (event) => {
-    if (isWindowToolsEventTarget(event.target)) {
-      return;
-    }
-
     updateCursorPosition(event);
 
     if (!laserModeEnabled) {
@@ -541,10 +540,6 @@ export async function createWindowEffectsOverlay({ root }) {
   };
 
   const handlePointerDown = (event) => {
-    if (isWindowToolsEventTarget(event.target)) {
-      return;
-    }
-
     updateCursorPosition(event);
 
     if (!laserModeEnabled) {
@@ -559,10 +554,6 @@ export async function createWindowEffectsOverlay({ root }) {
   };
 
   const handlePointerUp = (event) => {
-    if (isWindowToolsEventTarget(event.target)) {
-      return;
-    }
-
     updateCursorPosition(event);
 
     if (!laserModeEnabled) {
@@ -577,7 +568,7 @@ export async function createWindowEffectsOverlay({ root }) {
   };
 
   const handleWheel = (event) => {
-    if (!laserModeEnabled || isWindowToolsEventTarget(event.target)) {
+    if (!laserModeEnabled) {
       return;
     }
 
@@ -585,7 +576,7 @@ export async function createWindowEffectsOverlay({ root }) {
   };
 
   const handleClickLikeEvent = (event) => {
-    if (!laserModeEnabled || isWindowToolsEventTarget(event.target)) {
+    if (!laserModeEnabled) {
       return;
     }
 
@@ -593,10 +584,19 @@ export async function createWindowEffectsOverlay({ root }) {
   };
 
   const handleKeyDown = (event) => {
-    if (!laserModeEnabled) {
+    if (laserModeEnabled) {
+      if (isLaserToggleEvent(event)) {
+        setLaserModeEnabled(false);
+      }
+      consumeEvent(event);
       return;
     }
 
+    if (isEditableEventTarget(event.target) || !isLaserToggleEvent(event)) {
+      return;
+    }
+
+    setLaserModeEnabled(true);
     consumeEvent(event);
   };
 
@@ -673,7 +673,7 @@ export async function createWindowEffectsOverlay({ root }) {
 
     updateBurnMask(deltaTime, overlayRect, shouldSplat);
 
-    if (target && laserModeEnabled) {
+    if (target) {
       const { rect } = target;
       const centerX =
         rect.left + rect.width / 2 - overlayRect.left - overlayRect.width / 2;
@@ -717,14 +717,6 @@ export async function createWindowEffectsOverlay({ root }) {
   });
 
   return {
-    getActiveTool() {
-      return activeTool;
-    },
-
-    setActiveTool(toolId) {
-      setActiveTool(toolId);
-    },
-
     dispose() {
       setLaserModeEnabled(false);
       window.removeEventListener("resize", resize);

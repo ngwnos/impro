@@ -68,7 +68,8 @@
       import "/js/perf.js";
       import { enableErrorLogs } from "/js/errorLogs.js";
 
-      import { setUpWindowEffectsOverlay } from "/js/windowEffectsOverlay.js";
+      const { setUpWindowEffectsOverlay } =
+        await import("/js/windowEffectsOverlay.js?v={{ gitCommit }}");
       void setUpWindowEffectsOverlay();
 
       if (window.env.environment === "development") {
