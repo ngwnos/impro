@@ -2,19 +2,21 @@ import { test, expect } from "../../base.js";
 import { login } from "../../helpers.js";
 import { MockServer } from "../../mockServer.js";
 
-async function expectCentered(page) {
-  const center = await page
-    .locator('[data-testid="view-column-center"]')
-    .boundingBox();
-  expect(center).not.toBeNull();
+async function expectLegacyDesktopLayout(page) {
+  const layout = await page.evaluate(() => {
+    const center = document
+      .querySelector('[data-testid="view-column-center"]')
+      .getBoundingClientRect();
 
-  const rightEdge = center.x + center.width;
-  const leftMargin = center.x;
-  const rightMargin = page.viewportSize().width - rightEdge;
+    return {
+      width: center.width,
+      x: center.x,
+      documentWidth: document.body.getBoundingClientRect().width,
+    };
+  });
 
-  // Chromium includes the vertical scrollbar in the viewport width, so allow
-  // for that small desktop offset while still catching real shell drift.
-  expect(Math.abs(leftMargin - rightMargin)).toBeLessThanOrEqual(20);
+  expect(layout.width).toBe(600);
+  expect(layout.x).toBe((layout.documentWidth - layout.width) / 2);
 }
 
 test.describe("Sidebar tools", () => {
@@ -32,7 +34,7 @@ test.describe("Sidebar tools", () => {
     await page.setViewportSize({ width: 1100, height: 1000 });
     await page.goto("/");
     await expect(page.locator("#home-view")).toBeVisible({ timeout: 10000 });
-    await expectCentered(page);
+    await expectLegacyDesktopLayout(page);
 
     await expect(page.locator('[data-testid="sidebar-tools"]')).toBeHidden();
     await expect(
@@ -46,7 +48,7 @@ test.describe("Sidebar tools", () => {
     await page.setViewportSize({ width: 1400, height: 1000 });
     await page.goto("/");
     await expect(page.locator("#home-view")).toBeVisible({ timeout: 10000 });
-    await expectCentered(page);
+    await expectLegacyDesktopLayout(page);
 
     const tools = page.locator('[data-testid="sidebar-tools"]');
     const laser = page.locator('[data-testid="window-tool-laser"]');
