@@ -718,6 +718,58 @@ t.describe("app.on event listeners", (it) => {
   });
 });
 
+t.describe("App target attachments", (it) => {
+  it("posts an attachTargetAttachment hostCall with sanitized content", () => {
+    clearMessages();
+    const plugin = new Plugin();
+
+    plugin.app.targets.attach(
+      {
+        targetId: "profile-avatar:1",
+        attachmentId: "arrow-1",
+        anchor: { x: 0.25, y: 0.75 },
+        rotationDeg: 30,
+        layer: "foreground",
+      },
+      (contentEl) => {
+        contentEl.createDiv({ cls: "archery-stuck-arrow" });
+      },
+    );
+
+    const sent = lastMessage();
+    assertEquals(sent.type, "hostCall");
+    assertEquals(sent.method, "attachTargetAttachment");
+    assertEquals(sent.args[0].targetId, "profile-avatar:1");
+    assertEquals(sent.args[0].attachmentId, "arrow-1");
+    assertEquals(sent.args[0].anchor, { x: 0.25, y: 0.75 });
+    assertEquals(sent.args[0].rotationDeg, 30);
+    assertEquals(sent.args[0].layer, "foreground");
+    assertEquals(
+      sent.args[0].content.children[0].attrs.class,
+      "archery-stuck-arrow",
+    );
+  });
+
+  it("posts remove and clear target attachment host calls", () => {
+    clearMessages();
+    const plugin = new Plugin();
+
+    plugin.app.targets.remove({
+      targetId: "profile-avatar:1",
+      attachmentId: "arrow-1",
+    });
+    assertEquals(lastMessage().method, "removeTargetAttachment");
+    assertEquals(lastMessage().args[0], {
+      targetId: "profile-avatar:1",
+      attachmentId: "arrow-1",
+    });
+
+    plugin.app.targets.clear({ targetId: "profile-avatar:1" });
+    assertEquals(lastMessage().method, "clearTargetAttachments");
+    assertEquals(lastMessage().args[0], { targetId: "profile-avatar:1" });
+  });
+});
+
 t.describe("PluginSettingTab.refresh", (it) => {
   it("posts a refreshSettingTab hostCall", () => {
     clearMessages();

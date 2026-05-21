@@ -44,6 +44,40 @@ function addEventListener(event, listener) {
   }
   listeners.add(listener);
 }
+var TargetSurface = class {
+  attach(
+    {
+      targetId,
+      attachmentId,
+      anchor = { x: 0.5, y: 0.5 },
+      rotationDeg = 0,
+      layer = "foreground",
+    },
+    render,
+  ) {
+    const contentEl = new VirtualEl("div");
+    if (typeof render === "function") render(contentEl);
+    return hostCall("attachTargetAttachment", {
+      targetId,
+      attachmentId,
+      anchor,
+      rotationDeg,
+      layer,
+      content: contentEl._serialize(),
+    });
+  }
+  remove({ targetId, attachmentId }) {
+    return hostCall("removeTargetAttachment", {
+      targetId,
+      attachmentId,
+    });
+  }
+  clear({ targetId } = {}) {
+    return hostCall("clearTargetAttachments", {
+      targetId,
+    });
+  }
+};
 var MenuItem = class {
   constructor() {
     this.title = "";
@@ -84,6 +118,7 @@ var Menu = class {
 var App = class {
   constructor() {
     this.currentUser = null;
+    this.targets = new TargetSurface();
   }
   on(event, listener) {
     addEventListener(event, listener);
@@ -513,6 +548,13 @@ function createStaticBowScene({ isDrawing = false, shotPower = null } = {}) {
     ],
   };
 }
+function createStuckArrowScene() {
+  return {
+    tag: "div",
+    cls: "archery-stuck-arrow",
+    children: arrowChildren(),
+  };
+}
 function renderSceneNode(parentEl, node) {
   const child = parentEl.createEl(node.tag, {
     cls: node.cls,
@@ -573,7 +615,7 @@ function createArrowProjectile({ power, pullDistance }) {
     collision: {
       targetKinds: ["profile-avatar"],
       shape: "tip",
-      stopOnHit: false,
+      stopOnHit: true,
     },
   };
 }
@@ -660,12 +702,8 @@ var ArcheryOverlay = class extends Overlay {
 var ArcheryPlugin = class extends Plugin {
   async onload() {
     this.overlay = new ArcheryOverlay();
-    this.app.on("projectileHit", ({ projectileId, targetKind }) => {
-      if (projectileId !== "arrow-shot" || targetKind !== "profile-avatar") {
-        return;
-      }
-      new Notice("Hit profile picture", 1200);
-    });
+    this.stuckArrowId = 0;
+    this.app.on("projectileHit", (hit) => this.handleProjectileHit(hit));
     this.addSidebarItem("lightning-bolt", "Archery", async () => {
       try {
         if (this.overlay.isOpen) {
@@ -679,6 +717,30 @@ var ArcheryPlugin = class extends Plugin {
         throw error;
       }
     });
+  }
+  async handleProjectileHit({
+    projectileId,
+    targetKind,
+    targetId,
+    impact,
+    rotationDeg,
+  }) {
+    if (projectileId !== "arrow-shot" || targetKind !== "profile-avatar") {
+      return;
+    }
+    this.stuckArrowId += 1;
+    await this.app.targets.attach(
+      {
+        targetId,
+        attachmentId: `arrow-${this.stuckArrowId}`,
+        anchor: impact,
+        rotationDeg,
+        layer: "foreground",
+      },
+      (contentEl) => {
+        renderSceneNode(contentEl, createStuckArrowScene());
+      },
+    );
   }
 };
 ArcheryPlugin.register();

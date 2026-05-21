@@ -35,6 +35,12 @@ export function groupBy(array, keyOrFn) {
 }
 
 export const isDev = () => window.location.hostname === "localhost";
+export const isLocalPluginHost = ({
+  hostname = window.location.hostname,
+  env = window.env,
+} = {}) =>
+  hostname === "localhost" ||
+  (env?.environment === "development" && hostname === env?.hostName);
 export const isNative = () => Capacitor.isNativePlatform();
 export const isSafari = () =>
   /^((?!chrome|android).)*safari/i.test(navigator.userAgent);

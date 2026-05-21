@@ -8,7 +8,7 @@ export function createArrowProjectile({ power, pullDistance }) {
     collision: {
       targetKinds: ["profile-avatar"],
       shape: "tip",
-      stopOnHit: false,
+      stopOnHit: true,
     },
   };
 }

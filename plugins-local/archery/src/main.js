@@ -1,5 +1,9 @@
 import { Notice, Overlay, Plugin } from "./pluginWorker.js";
-import { createStaticBowScene, renderSceneNode } from "./scene.js";
+import {
+  createStaticBowScene,
+  createStuckArrowScene,
+  renderSceneNode,
+} from "./scene.js";
 import {
   createBowAimRelationship,
   createCursorDotRelationship,
@@ -97,12 +101,8 @@ class ArcheryOverlay extends Overlay {
 class ArcheryPlugin extends Plugin {
   async onload() {
     this.overlay = new ArcheryOverlay();
-    this.app.on("projectileHit", ({ projectileId, targetKind }) => {
-      if (projectileId !== "arrow-shot" || targetKind !== "profile-avatar") {
-        return;
-      }
-      new Notice("Hit profile picture", 1200);
-    });
+    this.stuckArrowId = 0;
+    this.app.on("projectileHit", (hit) => this.handleProjectileHit(hit));
 
     this.addSidebarItem("lightning-bolt", "Archery", async () => {
       try {
@@ -117,6 +117,31 @@ class ArcheryPlugin extends Plugin {
         throw error;
       }
     });
+  }
+
+  async handleProjectileHit({
+    projectileId,
+    targetKind,
+    targetId,
+    impact,
+    rotationDeg,
+  }) {
+    if (projectileId !== "arrow-shot" || targetKind !== "profile-avatar") {
+      return;
+    }
+    this.stuckArrowId += 1;
+    await this.app.targets.attach(
+      {
+        targetId,
+        attachmentId: `arrow-${this.stuckArrowId}`,
+        anchor: impact,
+        rotationDeg,
+        layer: "foreground",
+      },
+      (contentEl) => {
+        renderSceneNode(contentEl, createStuckArrowScene());
+      },
+    );
   }
 }
 

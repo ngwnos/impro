@@ -125,6 +125,16 @@
   will-change: transform;
 }
 
+.archery-stuck-arrow {
+  position: absolute;
+  top: -9px;
+  left: -58px;
+  z-index: 1;
+  width: 70px;
+  height: 18px;
+  pointer-events: none;
+}
+
 .archery-arrow-shaft {
   position: absolute;
   top: 8px;

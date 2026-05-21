@@ -297,6 +297,7 @@ export function launchPluginOverlayProjectile(
             plugin.sendEvent("projectileHit", {
               overlayId: String(overlayId),
               projectileId,
+              rotationDeg: frame.rotationDeg,
               ...hit,
             });
             if (collision.stopOnHit) {

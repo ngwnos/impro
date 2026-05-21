@@ -30,8 +30,8 @@ const SAMPLE = [
 // `{ calls, restore }` so tests can inspect requests and clean up.
 function stubFetch(payloadsByUrl) {
   const calls = [];
-  const fetchImpl = async (url) => {
-    calls.push(url);
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, options });
     if (!(url in payloadsByUrl)) return { ok: false, status: 404 };
     const payload = payloadsByUrl[url];
     return {
@@ -117,7 +117,9 @@ t.describe("LocalPluginRegistry", (it, { afterEach }) => {
     stub = stubFetch({ [LOCAL_INDEX_URL]: LOCAL_SAMPLE });
     const registry = new LocalPluginRegistry();
     assertEquals(await registry.getListings(), LOCAL_SAMPLE);
-    assertEquals(stub.calls, [LOCAL_INDEX_URL]);
+    assertEquals(stub.calls, [
+      { url: LOCAL_INDEX_URL, options: { cache: "no-store" } },
+    ]);
   });
 
   it("getListing returns the matching listing", async () => {

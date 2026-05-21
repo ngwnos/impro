@@ -25,7 +25,9 @@ export class SourceProvider {
 
   async getManifest(pluginId, version, repo) {
     if (pluginId.endsWith("__LOCAL")) {
-      const response = await fetch(`/plugins-local/${pluginId}/manifest.json`);
+      const response = await fetch(`/plugins-local/${pluginId}/manifest.json`, {
+        cache: "no-store",
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const manifest = await response.json();
       manifest.id = manifest.id + "__LOCAL";
@@ -66,7 +68,9 @@ export class SourceProvider {
 
   async getSource(pluginId, version, repo) {
     if (pluginId.endsWith("__LOCAL")) {
-      const response = await fetch(`/plugins-local/${pluginId}/main.js`);
+      const response = await fetch(`/plugins-local/${pluginId}/main.js`, {
+        cache: "no-store",
+      });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return await response.text();
     }
@@ -81,7 +85,9 @@ export class SourceProvider {
   // Returns CSS text if the plugin includes a styles.css, otherwise null.
   async getStyles(pluginId, version, repo) {
     if (pluginId.endsWith("__LOCAL")) {
-      const response = await fetch(`/plugins-local/${pluginId}/styles.css`);
+      const response = await fetch(`/plugins-local/${pluginId}/styles.css`, {
+        cache: "no-store",
+      });
       if (response.status === 404) return null;
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return await response.text();

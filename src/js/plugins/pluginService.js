@@ -17,6 +17,11 @@ import {
   clearPluginProjectilesForPlugin,
   launchPluginOverlayProjectile,
 } from "/js/plugins/pluginProjectiles.js";
+import {
+  attachPluginTargetAttachment,
+  clearPluginTargetAttachmentsForPlugin,
+  removePluginTargetAttachment,
+} from "/js/plugins/pluginTargetAttachments.js";
 import { PluginRenderer } from "/js/plugins/pluginRendering.js";
 import {
   RemotePluginRegistry,
@@ -26,7 +31,7 @@ import { PluginCache } from "/js/plugins/pluginCache.js";
 import { PluginPreferencesManager } from "/js/plugins/pluginPreferencesManager.js";
 import { SourceProvider } from "/js/plugins/sourceProvider.js";
 import { PluginStylesLoader } from "/js/plugins/pluginStylesLoader.js";
-import { compareVersions, isDev } from "/js/utils.js";
+import { compareVersions, isLocalPluginHost } from "/js/utils.js";
 import { EventEmitter } from "/js/eventEmitter.js";
 import { PLUGIN_REGISTRY_URL } from "/js/config.js";
 
@@ -72,7 +77,7 @@ export class PluginService extends EventEmitter {
     };
     this._availableUpdates = null;
     this._registryListings = null;
-    this.localPluginsEnabled = isDev();
+    this.localPluginsEnabled = isLocalPluginHost();
     this.remoteRegistry = new RemotePluginRegistry(PLUGIN_REGISTRY_URL);
     this.localRegistry = this.localPluginsEnabled
       ? new LocalPluginRegistry()
@@ -220,6 +225,42 @@ export class PluginService extends EventEmitter {
         launchPluginOverlayProjectile(plugin, { overlayId, projectile }),
     );
 
+    this.pluginBridge.addHostMethod(
+      "attachTargetAttachment",
+      (
+        plugin,
+        { targetId, attachmentId, content, anchor, rotationDeg, layer },
+      ) =>
+        attachPluginTargetAttachment({
+          pluginRenderer: this.getRenderer(plugin.pluginId),
+          pluginId: plugin.pluginId,
+          targetId,
+          attachmentId,
+          content,
+          anchor,
+          rotationDeg,
+          layer,
+        }),
+    );
+
+    this.pluginBridge.addHostMethod(
+      "removeTargetAttachment",
+      (plugin, { targetId, attachmentId }) => {
+        removePluginTargetAttachment({
+          pluginId: plugin.pluginId,
+          targetId,
+          attachmentId,
+        });
+      },
+    );
+
+    this.pluginBridge.addHostMethod(
+      "clearTargetAttachments",
+      (plugin, { targetId } = {}) => {
+        clearPluginTargetAttachmentsForPlugin(plugin.pluginId, { targetId });
+      },
+    );
+
     this.pluginBridge.addHostMethod("loadData", (plugin) => {
       return this.prefManager.readSettingsForPlugin(plugin.pluginId);
     });
@@ -353,6 +394,7 @@ export class PluginService extends EventEmitter {
           try {
             clearPluginOverlayRelationshipsForPlugin(entry.id);
             clearPluginProjectilesForPlugin(entry.id);
+            clearPluginTargetAttachmentsForPlugin(entry.id);
             hidePluginOverlaysForPlugin(entry.id);
             await this.pluginBridge.reloadPlugin(
               entry.id,
@@ -492,6 +534,7 @@ export class PluginService extends EventEmitter {
     this.pluginBridge.unloadPlugin(pluginId);
     clearPluginOverlayRelationshipsForPlugin(pluginId);
     clearPluginProjectilesForPlugin(pluginId);
+    clearPluginTargetAttachmentsForPlugin(pluginId);
     hidePluginOverlaysForPlugin(pluginId);
     this._pluginRenderers.delete(pluginId);
     await this.prefManager.removeInstalledPlugin(pluginId);
@@ -518,6 +561,7 @@ export class PluginService extends EventEmitter {
     this.pluginBridge.unloadPlugin(pluginId);
     clearPluginOverlayRelationshipsForPlugin(pluginId);
     clearPluginProjectilesForPlugin(pluginId);
+    clearPluginTargetAttachmentsForPlugin(pluginId);
     hidePluginOverlaysForPlugin(pluginId);
     this._pluginRenderers.delete(pluginId);
     await this.prefManager.setPluginDisabled(pluginId);
@@ -541,6 +585,7 @@ export class PluginService extends EventEmitter {
       }));
       clearPluginOverlayRelationshipsForPlugin(pluginId);
       clearPluginProjectilesForPlugin(pluginId);
+      clearPluginTargetAttachmentsForPlugin(pluginId);
       hidePluginOverlaysForPlugin(pluginId);
       await this.pluginBridge.reloadPlugin(
         pluginId,

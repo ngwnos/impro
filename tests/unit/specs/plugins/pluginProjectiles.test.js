@@ -224,13 +224,26 @@ t.describe("launchPluginOverlayProjectile", (it) => {
     assertEquals(plugin.sentEvents.length, 1);
     assertEquals(plugin.sentEvents[0].event, "projectileHit");
     assertEquals(Object.keys(plugin.sentEvents[0].data).sort(), [
+      "impact",
       "overlayId",
       "projectileId",
+      "rotationDeg",
       "targetId",
       "targetKind",
     ]);
     assertEquals(plugin.sentEvents[0].data.projectileId, "arrow-shot");
     assertEquals(plugin.sentEvents[0].data.targetKind, "profile-avatar");
+    assert(
+      plugin.sentEvents[0].data.impact.x >= 0 &&
+        plugin.sentEvents[0].data.impact.x <= 1,
+      "impact x should be normalized inside the hit target",
+    );
+    assert(
+      plugin.sentEvents[0].data.impact.y >= 0 &&
+        plugin.sentEvents[0].data.impact.y <= 1,
+      "impact y should be normalized inside the hit target",
+    );
+    assert(typeof plugin.sentEvents[0].data.rotationDeg === "number");
   });
 });
 

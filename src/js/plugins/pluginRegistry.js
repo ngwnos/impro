@@ -37,7 +37,7 @@ const LOCAL_INDEX_URL = "/plugins-local/index.json";
 
 export class LocalPluginRegistry extends PluginRegistry {
   async getListings() {
-    const response = await fetch(LOCAL_INDEX_URL);
+    const response = await fetch(LOCAL_INDEX_URL, { cache: "no-store" });
     if (!response.ok) {
       throw new Error(`local registry HTTP ${response.status}`);
     }

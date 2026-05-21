@@ -97,6 +97,14 @@ export function createStaticBowScene({
   };
 }
 
+export function createStuckArrowScene() {
+  return {
+    tag: "div",
+    cls: "archery-stuck-arrow",
+    children: arrowChildren(),
+  };
+}
+
 export function renderSceneNode(parentEl, node) {
   const child = parentEl.createEl(node.tag, {
     cls: node.cls,

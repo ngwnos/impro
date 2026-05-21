@@ -19,6 +19,7 @@ import {
   getBrowserLanguageCodes,
   withTimeout,
   TimeoutError,
+  isLocalPluginHost,
 } from "/js/utils.js";
 
 const t = new TestSuite("utils");
@@ -143,6 +144,53 @@ t.describe("groupBy", (it) => {
   it("should return empty Map for empty array", () => {
     const result = groupBy([], "id");
     assertEquals([...result.entries()], []);
+  });
+});
+
+t.describe("isLocalPluginHost", (it) => {
+  it("treats localhost as a local plugin host", () => {
+    assert(
+      isLocalPluginHost({
+        hostname: "localhost",
+        env: { environment: "production", hostName: "example.test" },
+      }),
+    );
+  });
+
+  it("treats the configured development hostname as a local plugin host", () => {
+    assert(
+      isLocalPluginHost({
+        hostname: "impro.cybernetic.work",
+        env: {
+          environment: "development",
+          hostName: "impro.cybernetic.work",
+        },
+      }),
+    );
+  });
+
+  it("does not treat the configured hostname as local outside development", () => {
+    assert(
+      !isLocalPluginHost({
+        hostname: "impro.cybernetic.work",
+        env: {
+          environment: "production",
+          hostName: "impro.cybernetic.work",
+        },
+      }),
+    );
+  });
+
+  it("does not treat unrelated hostnames as local", () => {
+    assert(
+      !isLocalPluginHost({
+        hostname: "example.test",
+        env: {
+          environment: "development",
+          hostName: "impro.cybernetic.work",
+        },
+      }),
+    );
   });
 });
 

@@ -802,6 +802,21 @@ input[type="color"]::-moz-color-swatch {
   width: fit-content;
 }
 
+.plugin-target-attachment-host {
+  position: relative;
+}
+
+.plugin-target-attachment {
+  position: absolute;
+  pointer-events: none;
+  transform-origin: 0 50%;
+  z-index: 2;
+}
+
+.plugin-target-attachment[data-layer="background"] {
+  z-index: 0;
+}
+
 .avatar-placeholder {
   width: var(--avatar-size-post);
   height: var(--avatar-size-post);

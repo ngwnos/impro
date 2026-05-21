@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { linkHtml } from "./modulepreload.js";
 import pkg from "./package.json" with { type: "json" };
 import fs from "node:fs";
@@ -14,6 +15,9 @@ async function transformGlob(pattern, replacer) {
 }
 
 export default async function (eleventyConfig) {
+  const isDev = process.env.NODE_ENV !== "production";
+  const cacheBustToken = isDev ? `${pkg.version}-${Date.now()}` : pkg.version;
+
   eleventyConfig.addPassthroughCopy("src/js");
   eleventyConfig.addPassthroughCopy("src/css");
   eleventyConfig.addPassthroughCopy("src/img");
@@ -21,8 +25,6 @@ export default async function (eleventyConfig) {
 
   // Prevent sandbox from being treated as a template
   eleventyConfig.ignores.add("src/js/plugins/sandbox.html");
-
-  const isDev = process.env.NODE_ENV !== "production";
 
   // Add watch targets for local plugins
   if (isDev) {
@@ -107,7 +109,7 @@ export default async function (eleventyConfig) {
 
   // Cache busting query params
   eleventyConfig.on("eleventy.after", async ({ dir }) => {
-    const bust = `?v=${pkg.version}`;
+    const bust = `?v=${cacheBustToken}`;
     const addBust = (_, before, ref, after) => `${before}${ref}${bust}${after}`;
 
     // JS module refs: `import ... from "x.js"`, `export ... from "x.js"`,

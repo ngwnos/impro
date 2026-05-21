@@ -50,6 +50,43 @@ function addEventListener(event, listener) {
   listeners.add(listener);
 }
 
+class TargetSurface {
+  attach(
+    {
+      targetId,
+      attachmentId,
+      anchor = { x: 0.5, y: 0.5 },
+      rotationDeg = 0,
+      layer = "foreground",
+    },
+    render,
+  ) {
+    const contentEl = new VirtualEl("div");
+    if (typeof render === "function") render(contentEl);
+    return hostCall("attachTargetAttachment", {
+      targetId,
+      attachmentId,
+      anchor,
+      rotationDeg,
+      layer,
+      content: contentEl._serialize(),
+    });
+  }
+
+  remove({ targetId, attachmentId }) {
+    return hostCall("removeTargetAttachment", {
+      targetId,
+      attachmentId,
+    });
+  }
+
+  clear({ targetId } = {}) {
+    return hostCall("clearTargetAttachments", {
+      targetId,
+    });
+  }
+}
+
 export class MenuItem {
   constructor() {
     this.title = "";
@@ -92,6 +129,7 @@ export class Menu {
 class App {
   constructor() {
     this.currentUser = null;
+    this.targets = new TargetSurface();
   }
   on(event, listener) {
     addEventListener(event, listener);

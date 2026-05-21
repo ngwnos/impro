@@ -63,6 +63,7 @@ t.describe("SourceProvider with local plugins", (it, { afterEach }) => {
       stub.calls[0].url,
       "/plugins-local/alpha__LOCAL/manifest.json",
     );
+    assertEquals(stub.calls[0].options, { cache: "no-store" });
     assertEquals(manifest.id, "alpha__LOCAL");
     assertEquals(manifest.version, "1.0.0");
   });
@@ -72,6 +73,7 @@ t.describe("SourceProvider with local plugins", (it, { afterEach }) => {
     const provider = new SourceProvider(null);
     const source = await provider.getSource("alpha__LOCAL");
     assertEquals(stub.calls[0].url, "/plugins-local/alpha__LOCAL/main.js");
+    assertEquals(stub.calls[0].options, { cache: "no-store" });
     assertEquals(source, "alert(1)");
   });
 
@@ -129,6 +131,7 @@ t.describe("SourceProvider with local plugins", (it, { afterEach }) => {
     const provider = new SourceProvider(null);
     const styles = await provider.getStyles("alpha__LOCAL");
     assertEquals(stub.calls[0].url, "/plugins-local/alpha__LOCAL/styles.css");
+    assertEquals(stub.calls[0].options, { cache: "no-store" });
     assertEquals(styles, "body{color:red}");
   });
 

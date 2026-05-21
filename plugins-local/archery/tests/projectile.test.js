@@ -12,7 +12,7 @@ test("createArrowProjectile asks the host to test profile avatar collisions", ()
     collision: {
       targetKinds: ["profile-avatar"],
       shape: "tip",
-      stopOnHit: false,
+      stopOnHit: true,
     },
   });
 });

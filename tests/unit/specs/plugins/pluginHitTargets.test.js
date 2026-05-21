@@ -2,6 +2,7 @@ import { TestSuite } from "../../testSuite.js";
 import { assert, assertEquals } from "../../testHelpers.js";
 import {
   findProjectileHit,
+  getPluginHitTargetElement,
   getPluginHitTargets,
   segmentIntersectsCircle,
 } from "/js/plugins/pluginHitTargets.js";
@@ -64,6 +65,17 @@ t.describe("getPluginHitTargets", (it) => {
       "target id should not expose profile identity",
     );
   });
+
+  it("resolves opaque target ids only while the target remains connected", () => {
+    clearDOM();
+    const avatar = addHitTarget();
+
+    const target = getPluginHitTargets({ targetKinds: ["profile-avatar"] })[0];
+
+    assertEquals(getPluginHitTargetElement(target.id), avatar);
+    avatar.remove();
+    assertEquals(getPluginHitTargetElement(target.id), null);
+  });
 });
 
 t.describe("segmentIntersectsCircle", (it) => {
@@ -98,8 +110,9 @@ t.describe("findProjectileHit", (it) => {
       targetKinds: ["profile-avatar"],
     });
 
-    assertEquals(Object.keys(hit).sort(), ["targetId", "targetKind"]);
+    assertEquals(Object.keys(hit).sort(), ["impact", "targetId", "targetKind"]);
     assertEquals(hit.targetKind, "profile-avatar");
+    assertEquals(hit.impact, { x: 0.5, y: 0.5 });
   });
 });
 

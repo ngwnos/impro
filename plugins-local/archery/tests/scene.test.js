@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createStaticBowScene } from "../src/scene.js";
+import { createStaticBowScene, createStuckArrowScene } from "../src/scene.js";
 
 test("static bow scene contains a bow, bowstring, arrow, and cursor dot", () => {
   const scene = createStaticBowScene();
@@ -117,4 +117,33 @@ test("static bow scene marks the stage while an arrow is flying", () => {
     scene.cls,
     "archery-stage archery-is-flying archery-shot-power-3",
   );
+});
+
+test("stuck arrow scene renders a plugin target attachment arrow", () => {
+  assert.deepEqual(createStuckArrowScene(), {
+    tag: "div",
+    cls: "archery-stuck-arrow",
+    children: [
+      {
+        tag: "div",
+        cls: "archery-arrow-shaft",
+        children: [],
+      },
+      {
+        tag: "div",
+        cls: "archery-arrow-head",
+        children: [],
+      },
+      {
+        tag: "div",
+        cls: "archery-arrow-fletching archery-arrow-fletching-top",
+        children: [],
+      },
+      {
+        tag: "div",
+        cls: "archery-arrow-fletching archery-arrow-fletching-bottom",
+        children: [],
+      },
+    ],
+  });
 });
