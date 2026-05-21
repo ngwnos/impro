@@ -73,6 +73,18 @@ t.describe("PluginRenderer:root reconciliation", (it) => {
     assert(!element.hasAttribute("placeholder"));
   });
 
+  it("keeps plugin animation target markers as scoped data attributes", () => {
+    const { bridge } = makeBridge();
+    const renderer = new PluginRenderer(bridge, "demo");
+    const element = renderer.createRoot().render({
+      tag: "div",
+      attrs: { "data-plugin-animation-target": "bow" },
+    });
+
+    assertEquals(element.dataset.pluginAnimationTarget, "bow");
+    assertEquals(element.getAttribute("style"), null);
+  });
+
   it("preserves the value of a focused input across re-render", () => {
     document.body.innerHTML = "";
     const { bridge } = makeBridge();
@@ -150,6 +162,52 @@ t.describe("PluginRenderer:root reconciliation", (it) => {
     button.dispatchEvent(new Event("click"));
     assertEquals(calls.length, 1);
     assertEquals(calls[0].handlerId, "h2");
+  });
+
+  it("dispatches pointer press events without exposing pointer coordinates", () => {
+    const { bridge, calls } = makeBridge();
+    const renderer = new PluginRenderer(bridge, "demo");
+    const root = renderer.createRoot();
+    const element = root.render({
+      tag: "div",
+      events: { pointerdown: "down", pointerup: "up" },
+    });
+    let capturedPointerId = null;
+    element.setPointerCapture = (pointerId) => {
+      capturedPointerId = pointerId;
+    };
+
+    const pointerDown = new Event("pointerdown");
+    Object.defineProperty(pointerDown, "pointerId", { value: 7 });
+    Object.defineProperty(pointerDown, "clientX", { value: 123 });
+    Object.defineProperty(pointerDown, "clientY", { value: 456 });
+    element.dispatchEvent(pointerDown);
+    element.dispatchEvent(new Event("pointerup"));
+
+    assertEquals(capturedPointerId, 7);
+    assertEquals(calls.length, 2);
+    assertEquals(calls[0].handlerId, "down");
+    assertEquals(calls[0].event.type, "pointerdown");
+    assertEquals(calls[0].event.clientX, undefined);
+    assertEquals(calls[0].event.clientY, undefined);
+    assertEquals(calls[1].handlerId, "up");
+  });
+
+  it("dispatches animationend events without exposing DOM details", () => {
+    const { bridge, calls } = makeBridge();
+    const renderer = new PluginRenderer(bridge, "demo");
+    const element = renderer.createRoot().render({
+      tag: "div",
+      events: { animationend: "done" },
+    });
+
+    const event = new Event("animationend");
+    Object.defineProperty(event, "animationName", { value: "secret-name" });
+    element.dispatchEvent(event);
+
+    assertEquals(calls.length, 1);
+    assertEquals(calls[0].handlerId, "done");
+    assertEquals(calls[0].event, { type: "animationend", target: {} });
   });
 
   it("stops dispatching when an event handler is removed", () => {

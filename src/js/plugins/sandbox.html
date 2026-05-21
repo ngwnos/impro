@@ -31,7 +31,9 @@
               type: "text/javascript",
             });
             const workerUrl = URL.createObjectURL(blob);
-            worker = new Worker(workerUrl, { type: "module" });
+            // Blob module workers fail in sandboxed iframes with opaque origins.
+            // Plugin bundles are self-contained, so a classic worker is enough.
+            worker = new Worker(workerUrl);
             URL.revokeObjectURL(workerUrl);
           } catch (error) {
             window.parent.postMessage(

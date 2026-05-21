@@ -1,6 +1,22 @@
 import { PluginBridge } from "/js/plugins/pluginBridge.js";
 import { showPluginModal, hidePluginModal } from "/js/modals.js";
 import { showPluginToast, hidePluginToast, showToast } from "/js/toasts.js";
+import {
+  showPluginOverlay,
+  hidePluginOverlay,
+  hidePluginOverlaysForPlugin,
+} from "/js/plugins/pluginOverlays.js";
+import {
+  bindPluginOverlayRelationship,
+  clearPluginOverlayRelationships,
+  clearPluginOverlayRelationshipsForPlugin,
+  unbindPluginOverlayRelationship,
+} from "/js/plugins/pluginAnimationBindings.js";
+import {
+  clearPluginOverlayProjectiles,
+  clearPluginProjectilesForPlugin,
+  launchPluginOverlayProjectile,
+} from "/js/plugins/pluginProjectiles.js";
 import { PluginRenderer } from "/js/plugins/pluginRendering.js";
 import {
   RemotePluginRegistry,
@@ -159,6 +175,51 @@ export class PluginService extends EventEmitter {
       hidePluginModal({ pluginId: plugin.pluginId, modalId });
     });
 
+    this.pluginBridge.addHostMethod(
+      "openOverlay",
+      (plugin, { overlayId, content, position }) => {
+        showPluginOverlay({
+          pluginRenderer: this.getRenderer(plugin.pluginId),
+          pluginId: plugin.pluginId,
+          overlayId,
+          content,
+          position,
+        });
+      },
+    );
+
+    this.pluginBridge.addHostMethod("closeOverlay", (plugin, { overlayId }) => {
+      clearPluginOverlayRelationships({ pluginId: plugin.pluginId, overlayId });
+      clearPluginOverlayProjectiles({ pluginId: plugin.pluginId, overlayId });
+      hidePluginOverlay({ pluginId: plugin.pluginId, overlayId });
+    });
+
+    this.pluginBridge.addHostMethod(
+      "bindOverlayRelationship",
+      (plugin, { overlayId, binding }) => {
+        // Plugins send relationship descriptions instead of receiving raw app
+        // signals like pointer coordinates. The host evaluates and applies the
+        // result only inside this plugin's overlay subtree.
+        bindPluginOverlayRelationship(plugin, { overlayId, binding });
+      },
+    );
+
+    this.pluginBridge.addHostMethod(
+      "unbindOverlayRelationship",
+      (plugin, { overlayId, bindingId }) => {
+        unbindPluginOverlayRelationship(plugin.pluginId, {
+          overlayId,
+          bindingId,
+        });
+      },
+    );
+
+    this.pluginBridge.addHostMethod(
+      "launchOverlayProjectile",
+      (plugin, { overlayId, projectile }) =>
+        launchPluginOverlayProjectile(plugin, { overlayId, projectile }),
+    );
+
     this.pluginBridge.addHostMethod("loadData", (plugin) => {
       return this.prefManager.readSettingsForPlugin(plugin.pluginId);
     });
@@ -290,6 +351,9 @@ export class PluginService extends EventEmitter {
         .filter((entry) => entry.enabled === true)
         .map(async (entry) => {
           try {
+            clearPluginOverlayRelationshipsForPlugin(entry.id);
+            clearPluginProjectilesForPlugin(entry.id);
+            hidePluginOverlaysForPlugin(entry.id);
             await this.pluginBridge.reloadPlugin(
               entry.id,
               entry.version,
@@ -426,6 +490,9 @@ export class PluginService extends EventEmitter {
 
   async uninstallPlugin(pluginId) {
     this.pluginBridge.unloadPlugin(pluginId);
+    clearPluginOverlayRelationshipsForPlugin(pluginId);
+    clearPluginProjectilesForPlugin(pluginId);
+    hidePluginOverlaysForPlugin(pluginId);
     this._pluginRenderers.delete(pluginId);
     await this.prefManager.removeInstalledPlugin(pluginId);
     await this.prefManager.clearSettingsForPlugin(pluginId);
@@ -449,6 +516,9 @@ export class PluginService extends EventEmitter {
 
   async disablePlugin(pluginId) {
     this.pluginBridge.unloadPlugin(pluginId);
+    clearPluginOverlayRelationshipsForPlugin(pluginId);
+    clearPluginProjectilesForPlugin(pluginId);
+    hidePluginOverlaysForPlugin(pluginId);
     this._pluginRenderers.delete(pluginId);
     await this.prefManager.setPluginDisabled(pluginId);
   }
@@ -469,6 +539,9 @@ export class PluginService extends EventEmitter {
         author,
         description,
       }));
+      clearPluginOverlayRelationshipsForPlugin(pluginId);
+      clearPluginProjectilesForPlugin(pluginId);
+      hidePluginOverlaysForPlugin(pluginId);
       await this.pluginBridge.reloadPlugin(
         pluginId,
         version,

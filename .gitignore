@@ -7,3 +7,5 @@ CLAUDE.md
 .claude
 plugins-local/*
 !plugins-local/.gitkeep
+!plugins-local/archery/
+!plugins-local/archery/**

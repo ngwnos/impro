@@ -83,7 +83,7 @@ export function wrapWorkerSource(source) {
     delete self.BroadcastChannel;
     delete self.SharedWorker;
   `;
-  return `${prelude}\n${source}`;
+  return `(() => {\n${prelude}\n${source}\n})();`;
 }
 
 async function createSandboxedWorker(source) {

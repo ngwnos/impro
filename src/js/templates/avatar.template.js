@@ -64,6 +64,7 @@ export function avatarTemplate({
           alt="${author.displayName} profile picture"
           class=${classnames("avatar-image", { "labeler-avatar": isLabeler })}
           data-testid="avatar-image"
+          data-plugin-hit-target="profile-avatar"
           data-lightbox-src="${avatarFullSizeUrl}"
           loading=${lazyLoad ? "lazy" : "eager"}
         />`,

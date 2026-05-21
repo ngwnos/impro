@@ -25,6 +25,7 @@ const {
   StyleSnippet,
   Plugin,
   Modal,
+  Overlay,
   PluginSettingTab,
   Setting,
 } = worker;
@@ -140,6 +141,13 @@ t.describe("VirtualEl (via Setting & friends)", (it) => {
     assertEquals(serialized.attrs.disabled, "");
   });
 
+  it("setAnimationTarget serializes a scoped data marker", () => {
+    const el = makeVirtualEl();
+    el.setAnimationTarget("bow");
+    const serialized = el._serialize();
+    assertEquals(serialized.attrs["data-plugin-animation-target"], "bow");
+  });
+
   it("empty() clears text and children", () => {
     const el = makeVirtualEl();
     el.createDiv({ text: "child" });
@@ -165,10 +173,20 @@ t.describe("VirtualEl (via Setting & friends)", (it) => {
     el.onClick(() => {});
     el.onChange(() => {});
     el.onInput(() => {});
+    el.onPointerDown(() => {});
+    el.onPointerUp(() => {});
+    el.onPointerCancel(() => {});
+    el.onPointerLeave(() => {});
+    el.onAnimationEnd(() => {});
     const serialized = el._serialize();
     assert(typeof serialized.events.click === "number");
     assert(typeof serialized.events.change === "number");
     assert(typeof serialized.events.input === "number");
+    assert(typeof serialized.events.pointerdown === "number");
+    assert(typeof serialized.events.pointerup === "number");
+    assert(typeof serialized.events.pointercancel === "number");
+    assert(typeof serialized.events.pointerleave === "number");
+    assert(typeof serialized.events.animationend === "number");
   });
 });
 
@@ -394,6 +412,168 @@ t.describe("Modal", (it) => {
   });
 });
 
+t.describe("Overlay", (it) => {
+  it("open() posts openOverlay hostCall, waits for the host, and invokes onOpen", async () => {
+    clearMessages();
+    const overlay = new Overlay("target", { position: "bottom-right" });
+    overlay.contentEl.setText("Bow");
+    let opened = false;
+    overlay.onOpen = () => {
+      opened = true;
+    };
+    const promise = overlay.open();
+
+    assert(opened, "onOpen should fire");
+    const sent = lastMessage();
+    assertEquals(sent.type, "hostCall");
+    assertEquals(sent.method, "openOverlay");
+    assert(typeof sent.hostCallId === "number");
+    assertEquals(sent.args[0].overlayId, "target");
+    assertEquals(sent.args[0].position, "bottom-right");
+    assertEquals(sent.args[0].content.text, "Bow");
+    assert(!overlay.isOpen, "overlay should wait for host confirmation");
+    dispatch({ type: "hostResult", hostCallId: sent.hostCallId, value: null });
+    await promise;
+    assert(overlay.isOpen, "overlay should be open after host confirmation");
+  });
+
+  it("calling open() twice only sends one openOverlay", async () => {
+    clearMessages();
+    const overlay = new Overlay("target-once");
+    const promise = overlay.open();
+    const sent = lastMessage();
+    dispatch({ type: "hostResult", hostCallId: sent.hostCallId, value: null });
+    await promise;
+    clearMessages();
+    await overlay.open();
+    const opens = postedMessages.filter(
+      (message) => message.method === "openOverlay",
+    );
+    assertEquals(opens.length, 0);
+  });
+
+  it("close() posts closeOverlay, waits for the host, and invokes onClose", async () => {
+    const overlay = new Overlay("target-close");
+    const openPromise = overlay.open();
+    const openCall = lastMessage();
+    dispatch({
+      type: "hostResult",
+      hostCallId: openCall.hostCallId,
+      value: null,
+    });
+    await openPromise;
+    clearMessages();
+    let closed = false;
+    overlay.onClose = () => {
+      closed = true;
+    };
+    const closePromise = overlay.close();
+
+    assert(!closed, "onClose should wait for host confirmation");
+    const sent = lastMessage();
+    assertEquals(sent.method, "closeOverlay");
+    assert(typeof sent.hostCallId === "number");
+    assertEquals(sent.args[0].overlayId, "target-close");
+    dispatch({ type: "hostResult", hostCallId: sent.hostCallId, value: null });
+    await closePromise;
+    assert(closed, "onClose should fire");
+    assert(!overlay.isOpen, "overlay should be closed after host confirmation");
+  });
+
+  it("update() re-sends overlay content while open", async () => {
+    clearMessages();
+    const overlay = new Overlay("target-update");
+    const openPromise = overlay.open();
+    const openCall = lastMessage();
+    dispatch({
+      type: "hostResult",
+      hostCallId: openCall.hostCallId,
+      value: null,
+    });
+    await openPromise;
+
+    overlay.contentEl.setText("Updated");
+    clearMessages();
+    const updatePromise = overlay.update();
+    const sent = lastMessage();
+    assertEquals(sent.method, "openOverlay");
+    assertEquals(sent.args[0].overlayId, "target-update");
+    assertEquals(sent.args[0].content.text, "Updated");
+    dispatch({ type: "hostResult", hostCallId: sent.hostCallId, value: null });
+    await updatePromise;
+  });
+});
+
+t.describe("Overlay relationships", (it) => {
+  it("bindRelationship sends a declarative host relationship without exposing pointer data", async () => {
+    clearMessages();
+    const overlay = new Overlay("archery-bow");
+    const binding = {
+      id: "aim-bow",
+      target: "bow",
+      transform: {
+        rotate: {
+          op: "angleBetween",
+          from: { source: "targetCenter", target: "bow" },
+          to: { source: "pointer" },
+        },
+      },
+      timing: { duration: 80, easing: "linear" },
+    };
+
+    const promise = overlay.bindRelationship(binding);
+    const sent = lastMessage();
+    assertEquals(sent.type, "hostCall");
+    assertEquals(sent.method, "bindOverlayRelationship");
+    assertEquals(sent.args[0], {
+      overlayId: "archery-bow",
+      binding,
+    });
+    dispatch({ type: "hostResult", hostCallId: sent.hostCallId, value: null });
+    await promise;
+  });
+
+  it("unbindRelationship asks the host to remove a relationship", async () => {
+    clearMessages();
+    const overlay = new Overlay("archery-bow");
+    const promise = overlay.unbindRelationship("aim-bow");
+    const sent = lastMessage();
+    assertEquals(sent.type, "hostCall");
+    assertEquals(sent.method, "unbindOverlayRelationship");
+    assertEquals(sent.args[0], {
+      overlayId: "archery-bow",
+      bindingId: "aim-bow",
+    });
+    dispatch({ type: "hostResult", hostCallId: sent.hostCallId, value: null });
+    await promise;
+  });
+
+  it("launchProjectile asks the host to run a scoped projectile animation", async () => {
+    clearMessages();
+    const overlay = new Overlay("archery-bow");
+    const promise = overlay.launchProjectile({
+      projectileId: "arrow-shot",
+      target: "flying-arrow",
+      aimTarget: "bow",
+      power: 4,
+    });
+    const sent = lastMessage();
+    assertEquals(sent.type, "hostCall");
+    assertEquals(sent.method, "launchOverlayProjectile");
+    assertEquals(sent.args[0], {
+      overlayId: "archery-bow",
+      projectile: {
+        projectileId: "arrow-shot",
+        target: "flying-arrow",
+        aimTarget: "bow",
+        power: 4,
+      },
+    });
+    dispatch({ type: "hostResult", hostCallId: sent.hostCallId, value: null });
+    await promise;
+  });
+});
+
 t.describe("message dispatch — call handlers", (it) => {
   it("invokes a registered handler and posts the result", async () => {
     clearMessages();
@@ -475,6 +655,66 @@ t.describe("app.on event listeners", (it) => {
     const result = postedMessages.find((message) => message.type === "result");
     assertEquals(result.value.length, 1);
     assertEquals(result.value[0].title, "Open 42");
+  });
+
+  it("dispatches projectileHit events directly to app listeners", async () => {
+    clearMessages();
+    const plugin = new Plugin();
+    const received = [];
+    plugin.app.on("projectileHit", (payload) => {
+      received.push(payload);
+    });
+    const register = postedMessages.find(
+      (message) =>
+        message.type === "register" && message.target === "eventListener",
+    );
+    assert(register, "an eventListener register message should be posted");
+    assertEquals(register.event, "projectileHit");
+
+    await dispatch({
+      type: "event",
+      event: "projectileHit",
+      data: {
+        projectileId: "arrow-shot",
+        targetKind: "profile-avatar",
+        targetId: "profile-avatar:1",
+      },
+    });
+
+    assertEquals(received, [
+      {
+        projectileId: "arrow-shot",
+        targetKind: "profile-avatar",
+        targetId: "profile-avatar:1",
+      },
+    ]);
+  });
+
+  it("allows host events to trigger plugin host calls", async () => {
+    clearMessages();
+    const plugin = new Plugin();
+    plugin.app.on("projectileHit", ({ projectileId }) => {
+      if (projectileId === "arrow-shot")
+        new Notice("Hit profile picture", 1200);
+    });
+
+    await dispatch({
+      type: "event",
+      event: "projectileHit",
+      data: {
+        projectileId: "arrow-shot",
+        targetKind: "profile-avatar",
+        targetId: "profile-avatar:1",
+      },
+    });
+    await flushMicrotasks();
+
+    const showToast = postedMessages.find(
+      (message) => message.method === "showToast",
+    );
+    assert(showToast, "expected projectileHit to trigger a showToast hostCall");
+    assertEquals(showToast.args[0].element.text, "Hit profile picture");
+    assertEquals(showToast.args[0].timeout, 1200);
   });
 });
 

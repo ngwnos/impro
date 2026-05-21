@@ -28,7 +28,16 @@ const ALLOWED_TAGS = [
   "textarea",
 ];
 
-const ALLOWED_EVENTS = ["click", "change", "input"];
+const ALLOWED_EVENTS = [
+  "click",
+  "change",
+  "input",
+  "pointerdown",
+  "pointerup",
+  "pointercancel",
+  "pointerleave",
+  "animationend",
+];
 
 function isAllowedTag(tag) {
   return ALLOWED_TAGS.includes(tag);
@@ -269,6 +278,22 @@ export class PluginRenderer {
       map[name] = handlerId;
       if (isNew) {
         element.addEventListener(name, (event) => {
+          // Pointer press events are allowed so plugins can react to presses in
+          // their own UI, but `createVirtualEvent` intentionally omits pointer
+          // coordinates. Automatic capture keeps press/release state reliable
+          // without giving the worker direct DOM access.
+          if (
+            name === "pointerdown" &&
+            event.pointerId != null &&
+            typeof element.setPointerCapture === "function"
+          ) {
+            try {
+              element.setPointerCapture(event.pointerId);
+            } catch {
+              // Pointer capture can fail if the browser has already ended the
+              // pointer stream; dispatch the sanitized event either way.
+            }
+          }
           const currentId = element[HANDLER_MAP]?.[name];
           if (currentId == null) return;
           this.pluginBridge.handleNodeEvent(

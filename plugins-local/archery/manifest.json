@@ -1,0 +1,7 @@
+{
+  "id": "archery",
+  "name": "Archery",
+  "version": "0.1.0",
+  "author": "Local",
+  "description": "Animated bow overlay for testing plugin graphics and avatar hit targets."
+}

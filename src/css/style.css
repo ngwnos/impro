@@ -175,6 +175,7 @@ html {
   --reaction-palette-z-index: 4;
   --toast-z-index: 5;
   --floating-compose-button-z-index: 6;
+  --plugin-overlay-z-index: 7;
   --sidebar-z-index: 8;
   --lightbox-container-z-index: 9;
   --lightbox-z-index: 10;
@@ -5178,6 +5179,46 @@ context-menu-item-group:not(:last-child) .context-menu-item-group {
   gap: 8px;
   justify-content: flex-end;
   flex-direction: column-reverse;
+}
+
+#plugin-overlay-root {
+  position: fixed;
+  inset: 0;
+  z-index: var(--plugin-overlay-z-index);
+  pointer-events: none;
+}
+
+.plugin-overlay {
+  position: absolute;
+  pointer-events: auto;
+  max-width: calc(
+    100vw - 32px - env(safe-area-inset-left, 0px) -
+      env(safe-area-inset-right, 0px)
+  );
+  max-height: calc(
+    100vh - 32px - env(safe-area-inset-top, 0px) -
+      env(safe-area-inset-bottom, 0px)
+  );
+}
+
+.plugin-overlay[data-position="top-left"] {
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  left: calc(16px + env(safe-area-inset-left, 0px));
+}
+
+.plugin-overlay[data-position="top-right"] {
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  right: calc(16px + env(safe-area-inset-right, 0px));
+}
+
+.plugin-overlay[data-position="bottom-left"] {
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  left: calc(16px + env(safe-area-inset-left, 0px));
+}
+
+.plugin-overlay[data-position="bottom-right"] {
+  right: calc(16px + env(safe-area-inset-right, 0px));
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
 }
 
 .image-alt-text-dialog {

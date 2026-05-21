@@ -1,5 +1,6 @@
 import { TestSuite } from "../../testSuite.js";
 import { assert, assertEquals } from "../../testHelpers.js";
+import fs from "node:fs";
 
 // PluginBridge reads window.env.playwright during loadFromSource; provide it
 // so the import resolves cleanly. Individual tests avoid the real load path.
@@ -793,6 +794,14 @@ t.describe("internals:wrapWorkerSource ordering", (it) => {
     assert(preludeIndex >= 0 && sourceIndex >= 0);
     assert(preludeIndex < sourceIndex);
   });
+
+  it("wraps source in function scope for classic workers", () => {
+    const wrapped = wrapWorkerSource("function addEventListener() {}");
+    const trimmed = wrapped.trim();
+
+    assert(trimmed.startsWith("(() => {"));
+    assert(trimmed.endsWith("})();"));
+  });
 });
 
 t.describe("internals:SandboxedWorker", (it) => {
@@ -890,6 +899,13 @@ t.describe("internals:SandboxedWorker", (it) => {
     worker.terminate();
     assert(!document.body.contains(frame));
     assert(terminated);
+  });
+
+  it("sandbox starts plugin blobs as classic workers", () => {
+    const sandboxHtml = fs.readFileSync("src/js/plugins/sandbox.html", "utf-8");
+
+    assert(!sandboxHtml.includes('new Worker(workerUrl, { type: "module" })'));
+    assert(sandboxHtml.includes("new Worker(workerUrl)"));
   });
 });
 

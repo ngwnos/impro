@@ -23,6 +23,17 @@ t.describe("avatarTemplate", (it) => {
     assert(img.getAttribute("src").includes(post.author.did));
   });
 
+  it("marks avatar images as host-owned plugin hit targets", () => {
+    const result = avatarTemplate({ author: post.author });
+    const container = document.createElement("div");
+    render(result, container);
+    const img = container.querySelector("[data-testid='avatar-image']");
+
+    assertEquals(img.getAttribute("data-plugin-hit-target"), "profile-avatar");
+    assertEquals(img.hasAttribute("data-plugin-hit-target-id"), false);
+    assertEquals(img.hasAttribute("data-plugin-hit-target-did"), false);
+  });
+
   it("should render fallback avatar when no avatar URL", () => {
     const author = { ...post.author, avatar: null };
     const result = avatarTemplate({ author });

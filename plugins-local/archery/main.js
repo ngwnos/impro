@@ -1,18 +1,15 @@
-export class SimpleUUID {
+// src/pluginWorker.js
+var SimpleUUID = class {
   constructor() {
     this._id = 0;
   }
   create() {
     return this._id++;
   }
-}
-
-const uuid = new SimpleUUID();
-
-const callHandlers = new Map();
-
-const pendingHostCalls = new Map();
-
+};
+var uuid = new SimpleUUID();
+var callHandlers = /* @__PURE__ */ new Map();
+var pendingHostCalls = /* @__PURE__ */ new Map();
 function hostCall(method, ...args) {
   const hostCallId = uuid.create();
   return new Promise((resolve, reject) => {
@@ -20,13 +17,11 @@ function hostCall(method, ...args) {
     self.postMessage({ type: "hostCall", method, hostCallId, args });
   });
 }
-
-const eventListeners = new Map();
-
+var eventListeners = /* @__PURE__ */ new Map();
 function addEventListener(event, listener) {
   let listeners = eventListeners.get(event);
   if (!listeners) {
-    listeners = new Set();
+    listeners = /* @__PURE__ */ new Set();
     eventListeners.set(event, listeners);
     const handlerId = uuid.create();
     callHandlers.set(handlerId, async (...args) => {
@@ -49,8 +44,7 @@ function addEventListener(event, listener) {
   }
   listeners.add(listener);
 }
-
-export class MenuItem {
+var MenuItem = class {
   constructor() {
     this.title = "";
     this.icon = null;
@@ -68,9 +62,8 @@ export class MenuItem {
     this._callback = callback;
     return this;
   }
-}
-
-export class Menu {
+};
+var Menu = class {
   constructor() {
     this.items = [];
   }
@@ -87,46 +80,19 @@ export class Menu {
       return { title: item.title, icon: item.icon, handlerId };
     });
   }
-}
-
-class App {
+};
+var App = class {
   constructor() {
     this.currentUser = null;
   }
   on(event, listener) {
     addEventListener(event, listener);
   }
-
   refreshFeedFilters(feedURI = null) {
     return hostCall("refreshFeedFilters", feedURI);
   }
-}
-
-export const Motion = {
-  pointer() {
-    return { source: "pointer" };
-  },
-  targetCenter(target = null) {
-    return { source: "targetCenter", target };
-  },
-  overlayOrigin() {
-    return { source: "overlayOrigin" };
-  },
-  vector(x, y) {
-    return { x, y };
-  },
-  add(...values) {
-    return { op: "add", values };
-  },
-  subtract(left, right) {
-    return { op: "subtract", left, right };
-  },
-  angleBetween(from, to) {
-    return { op: "angleBetween", from, to };
-  },
 };
-
-export class Notice {
+var Notice = class {
   constructor(message, timeout = 0) {
     this._toastId = uuid.create();
     this._timeout = timeout;
@@ -152,36 +118,12 @@ export class Notice {
     this._hidden = true;
     hostCall("hideToast", { toastId: this._toastId });
   }
-}
-
-export class StyleSnippet {
-  constructor(cssText) {
-    this._snippetId = uuid.create();
-    this._removed = false;
-    this.ready = new Promise((resolve, reject) => {
-      queueMicrotask(() => {
-        if (this._removed) return resolve();
-        hostCall("applyStyleSnippet", {
-          snippetId: this._snippetId,
-          cssText,
-        }).then(resolve, reject);
-      });
-    });
-  }
-  remove() {
-    if (this._removed) return;
-    this._removed = true;
-    hostCall("removeStyleSnippet", { snippetId: this._snippetId });
-  }
-}
-
-let registered = false;
-
-export class Plugin {
+};
+var registered = false;
+var Plugin = class {
   constructor() {
     this.app = new App();
   }
-
   addSidebarItem(icon, title, callback = () => {}) {
     const handlerId = uuid.create();
     callHandlers.set(handlerId, callback);
@@ -193,15 +135,12 @@ export class Plugin {
       handlerId,
     });
   }
-
   async loadData() {
     return hostCall("loadData");
   }
-
   async saveData(data) {
     await hostCall("saveData", { data });
   }
-
   addSettingTab(tab) {
     tab.plugin = this;
     const displayHandlerId = uuid.create();
@@ -218,7 +157,6 @@ export class Plugin {
     });
     this._settingTab = tab;
   }
-
   addFeedFilter(callback = () => {}) {
     const handlerId = uuid.create();
     callHandlers.set(handlerId, callback);
@@ -228,10 +166,8 @@ export class Plugin {
       handlerId,
     });
   }
-
   onload() {}
   onunload() {}
-
   static register() {
     if (registered) return;
     registered = true;
@@ -250,63 +186,19 @@ export class Plugin {
           }),
       );
   }
-}
-
-const openModals = new Map();
-
-export class Modal {
-  constructor() {
-    this._modalId = uuid.create();
-    this.contentEl = new VirtualEl("div");
-    this.titleEl = new VirtualEl("h2");
-  }
-
-  open() {
-    if (openModals.has(this._modalId)) return;
-    openModals.set(this._modalId, this);
-    this.onOpen();
-    self.postMessage({
-      type: "hostCall",
-      method: "openModal",
-      args: [
-        {
-          modalId: this._modalId,
-          title: this.titleEl._serialize(),
-          content: this.contentEl._serialize(),
-        },
-      ],
-    });
-  }
-
-  close() {
-    if (!openModals.has(this._modalId)) return;
-    openModals.delete(this._modalId);
-    self.postMessage({
-      type: "hostCall",
-      method: "closeModal",
-      args: [{ modalId: this._modalId }],
-    });
-    this.onClose();
-  }
-
-  onOpen() {}
-  onClose() {}
-}
-
-const openOverlays = new Map();
-
-export class Overlay {
+};
+var openModals = /* @__PURE__ */ new Map();
+var openOverlays = /* @__PURE__ */ new Map();
+var Overlay = class {
   constructor(overlayId, { position = "bottom-right" } = {}) {
     this._overlayId = overlayId ?? uuid.create();
     this.position = position;
     this.contentEl = new VirtualEl("div");
     this._open = false;
   }
-
   get isOpen() {
     return this._open;
   }
-
   async open() {
     if (this._open || openOverlays.has(this._overlayId)) return;
     this.onOpen();
@@ -318,7 +210,6 @@ export class Overlay {
     openOverlays.set(this._overlayId, this);
     this._open = true;
   }
-
   async close() {
     if (!this._open || !openOverlays.has(this._overlayId)) return;
     await hostCall("closeOverlay", { overlayId: this._overlayId });
@@ -326,7 +217,6 @@ export class Overlay {
     openOverlays.delete(this._overlayId);
     this.onClose();
   }
-
   async update() {
     if (!this._open || !openOverlays.has(this._overlayId)) return;
     await hostCall("openOverlay", {
@@ -335,182 +225,28 @@ export class Overlay {
       content: this.contentEl._serialize(),
     });
   }
-
   bindRelationship(binding) {
-    // Relationship bindings are intentionally declarative: plugins describe
-    // math over host-owned signals (for example the pointer) without receiving
-    // those signal values back in the worker.
     return hostCall("bindOverlayRelationship", {
       overlayId: this._overlayId,
       binding,
     });
   }
-
   unbindRelationship(bindingId) {
     return hostCall("unbindOverlayRelationship", {
       overlayId: this._overlayId,
       bindingId,
     });
   }
-
   launchProjectile(projectile) {
     return hostCall("launchOverlayProjectile", {
       overlayId: this._overlayId,
       projectile,
     });
   }
-
   onOpen() {}
   onClose() {}
-}
-
-export class PluginSettingTab {
-  constructor() {
-    this.containerEl = new VirtualEl("div");
-    this.name = null;
-  }
-  setName(name) {
-    this.name = name;
-    return this;
-  }
-  display() {}
-  refresh() {
-    return hostCall("refreshSettingTab");
-  }
-}
-
-export class Setting {
-  constructor(containerEl) {
-    this.settingEl = containerEl.createDiv({ cls: "plugin-setting-item" });
-    this.infoEl = this.settingEl.createDiv({ cls: "plugin-setting-item-info" });
-    this.nameEl = this.infoEl.createDiv({ cls: "plugin-setting-item-name" });
-    this.descEl = this.infoEl.createDiv({ cls: "plugin-setting-item-desc" });
-    this.controlEl = this.settingEl.createDiv({
-      cls: "plugin-setting-item-control",
-    });
-  }
-  setName(text) {
-    this.nameEl.setText(text);
-    return this;
-  }
-  setDesc(text) {
-    this.descEl.setText(text);
-    return this;
-  }
-  addText(callback) {
-    const component = new TextComponent(this.controlEl);
-    callback(component);
-    return this;
-  }
-  addToggle(callback) {
-    const component = new ToggleComponent(this.controlEl);
-    callback(component);
-    return this;
-  }
-  addDropdown(callback) {
-    const component = new DropdownComponent(this.controlEl);
-    callback(component);
-    return this;
-  }
-  addButton(callback) {
-    const component = new ButtonComponent(this.controlEl);
-    callback(component);
-    return this;
-  }
-}
-
-class TextComponent {
-  constructor(containerEl) {
-    this.el = containerEl.createEl("input", {
-      attr: { type: "text" },
-      cls: "plugin-setting-text-input",
-    });
-  }
-  setValue(value) {
-    this.el.setAttr("value", value == null ? "" : String(value));
-    return this;
-  }
-  setPlaceholder(value) {
-    this.el.setAttr("placeholder", value);
-    return this;
-  }
-  onChange(callback) {
-    this.el.onChange((event) => callback(event.target.value));
-    return this;
-  }
-}
-
-class ToggleComponent {
-  constructor(containerEl) {
-    this.el = containerEl.createEl("input", {
-      attr: { type: "checkbox" },
-      cls: "plugin-setting-toggle",
-    });
-  }
-  setValue(value) {
-    if (value) this.el.setAttr("checked", "");
-    else delete this.el.attrs.checked;
-    return this;
-  }
-  onChange(callback) {
-    this.el.onChange((event) => callback(event.target.checked));
-    return this;
-  }
-}
-
-class DropdownComponent {
-  constructor(containerEl) {
-    this.el = containerEl.createEl("select", {
-      cls: "plugin-setting-dropdown",
-    });
-  }
-  addOption(value, label) {
-    this.el.createEl("option", { text: label, attr: { value } });
-    return this;
-  }
-  addOptions(map) {
-    for (const [value, label] of Object.entries(map)) {
-      this.addOption(value, label);
-    }
-    return this;
-  }
-  setValue(value) {
-    for (const child of this.el.children) {
-      if (child.attrs?.value === value) {
-        child.attrs.selected = "";
-      } else if (child.attrs) {
-        delete child.attrs.selected;
-      }
-    }
-    return this;
-  }
-  onChange(callback) {
-    this.el.onChange((event) => callback(event.target.value));
-    return this;
-  }
-}
-
-class ButtonComponent {
-  constructor(containerEl) {
-    this.el = containerEl.createEl("button", {
-      cls: "plugin-setting-button",
-    });
-  }
-  setButtonText(text) {
-    this.el.setText(text);
-    return this;
-  }
-  setCta() {
-    this.el.addClass("primary-button");
-    return this;
-  }
-  onClick(callback) {
-    this.el.onClick(callback);
-    return this;
-  }
-}
-
-class VirtualEl {
+};
+var VirtualEl = class _VirtualEl {
   constructor(tag) {
     this.tag = tag;
     this.attrs = {};
@@ -518,81 +254,66 @@ class VirtualEl {
     this.children = [];
     this.events = {};
   }
-
   _on(event, fn) {
     const handlerId = uuid.create();
     callHandlers.set(handlerId, fn);
     this.events[event] = handlerId;
     return this;
   }
-
   onClick(fn) {
     return this._on("click", fn);
   }
-
   onPointerDown(fn) {
     return this._on("pointerdown", fn);
   }
-
   onPointerUp(fn) {
     return this._on("pointerup", fn);
   }
-
   onPointerCancel(fn) {
     return this._on("pointercancel", fn);
   }
-
   onPointerLeave(fn) {
     return this._on("pointerleave", fn);
   }
-
   onAnimationEnd(fn) {
     return this._on("animationend", fn);
   }
-
   onChange(fn) {
     const handlerId = uuid.create();
     callHandlers.set(handlerId, fn);
     this.events.change = handlerId;
     return this;
   }
-
   onInput(fn) {
     const handlerId = uuid.create();
     callHandlers.set(handlerId, fn);
     this.events.input = handlerId;
     return this;
   }
-
   setText(text) {
     this.text = text;
     this.children = [];
     return this;
   }
-
   empty() {
     this.text = null;
     this.children = [];
     return this;
   }
-
   addClass(cls) {
     this.attrs.class = this.attrs.class ? `${this.attrs.class} ${cls}` : cls;
     return this;
   }
-
   setAttr(name, value) {
-    this.attrs[name] = value === undefined ? "" : value;
+    this.attrs[name] = value === void 0 ? "" : value;
     return this;
   }
-
   setAnimationTarget(targetId) {
     this.attrs["data-plugin-animation-target"] = targetId;
     return this;
   }
-
   createEl(tag, options = {}, callback) {
-    const child = new VirtualEl(tag);
+    const child = new _VirtualEl(tag);
     if (options.text != null) child.text = options.text;
     if (options.cls) {
       child.attrs.class = Array.isArray(options.cls)
@@ -604,15 +325,12 @@ class VirtualEl {
     if (typeof callback === "function") callback(child);
     return child;
   }
-
   createDiv(options = {}, callback) {
     return this.createEl("div", options, callback);
   }
-
   createSpan(options = {}, callback) {
     return this.createEl("span", options, callback);
   }
-
   _serialize() {
     return {
       tag: this.tag,
@@ -622,13 +340,10 @@ class VirtualEl {
       events: this.events,
     };
   }
-}
-
+};
 self.addEventListener("message", async (event) => {
   const message = event.data;
   if (!message || typeof message !== "object") return;
-
-  // RPC calls
   if (message.type === "call") {
     const fn = callHandlers.get(message.handlerId);
     if (!fn) {
@@ -651,8 +366,6 @@ self.addEventListener("message", async (event) => {
     }
     return;
   }
-
-  // Host call results
   if (message.type === "hostResult") {
     const pending = pendingHostCalls.get(message.hostCallId);
     if (!pending) return;
@@ -661,8 +374,6 @@ self.addEventListener("message", async (event) => {
     else pending.resolve(message.value);
     return;
   }
-
-  // Events
   if (message.type === "event") {
     switch (message.event) {
       case "modalDismissed": {
@@ -687,3 +398,287 @@ self.addEventListener("message", async (event) => {
     return;
   }
 });
+
+// src/shot.js
+var DRAW_DURATION_MS = 1300;
+var MAX_DRAW_DISTANCE = 48;
+var MAX_SHOT_POWER = 5;
+function getDrawDistance(holdTimeMs) {
+  const clamped = Math.max(0, Math.min(holdTimeMs, DRAW_DURATION_MS));
+  return (clamped / DRAW_DURATION_MS) * MAX_DRAW_DISTANCE;
+}
+function getShotPower(holdTimeMs) {
+  const clamped = Math.max(0, Math.min(holdTimeMs, DRAW_DURATION_MS));
+  return Math.max(
+    1,
+    Math.min(
+      MAX_SHOT_POWER,
+      Math.floor(clamped / (DRAW_DURATION_MS / MAX_SHOT_POWER)),
+    ),
+  );
+}
+function shotClass(power) {
+  return `archery-shot-power-${Math.max(1, Math.min(MAX_SHOT_POWER, power))}`;
+}
+
+// src/scene.js
+function arrowChildren() {
+  return [
+    {
+      tag: "div",
+      cls: "archery-arrow-shaft",
+      children: [],
+    },
+    {
+      tag: "div",
+      cls: "archery-arrow-head",
+      children: [],
+    },
+    {
+      tag: "div",
+      cls: "archery-arrow-fletching archery-arrow-fletching-top",
+      children: [],
+    },
+    {
+      tag: "div",
+      cls: "archery-arrow-fletching archery-arrow-fletching-bottom",
+      children: [],
+    },
+  ];
+}
+function stageClass({ isDrawing, shotPower }) {
+  const classes = ["archery-stage"];
+  if (isDrawing) classes.push("archery-is-drawing");
+  if (shotPower != null) {
+    classes.push("archery-is-flying", shotClass(shotPower));
+  }
+  return classes.join(" ");
+}
+function createStaticBowScene({ isDrawing = false, shotPower = null } = {}) {
+  return {
+    tag: "div",
+    cls: stageClass({ isDrawing, shotPower }),
+    children: [
+      {
+        tag: "span",
+        cls: "archery-fallback-label",
+        text: "Archery",
+        children: [],
+      },
+      {
+        tag: "div",
+        cls: "archery-bow-aim",
+        animationTarget: "bow",
+        children: [
+          {
+            tag: "div",
+            cls: "archery-bow-string",
+            children: [
+              {
+                tag: "div",
+                cls: "archery-bow-string-line archery-bow-string-line-top",
+                children: [],
+              },
+              {
+                tag: "div",
+                cls: "archery-bow-string-line archery-bow-string-line-bottom",
+                children: [],
+              },
+            ],
+          },
+          {
+            tag: "div",
+            cls: "archery-arrow",
+            children: arrowChildren(),
+          },
+          {
+            tag: "div",
+            cls: "archery-bow archery-bow-wood",
+            children: [],
+          },
+        ],
+      },
+      {
+        tag: "div",
+        cls: "archery-arrow archery-flying-arrow",
+        animationTarget: "flying-arrow",
+        children: arrowChildren(),
+      },
+      {
+        tag: "div",
+        cls: "archery-cursor-dot",
+        animationTarget: "cursor-dot",
+        children: [],
+      },
+    ],
+  };
+}
+function renderSceneNode(parentEl, node) {
+  const child = parentEl.createEl(node.tag, {
+    cls: node.cls,
+    text: node.text,
+    attr: node.attr,
+  });
+  if (node.animationTarget) child.setAnimationTarget(node.animationTarget);
+  for (const childNode of node.children ?? []) {
+    renderSceneNode(child, childNode);
+  }
+  return child;
+}
+
+// src/relationships.js
+function createBowAimRelationship() {
+  return {
+    id: "aim-bow",
+    target: "bow",
+    transform: {
+      rotate: {
+        op: "angleBetween",
+        from: { source: "targetCenter", target: "bow" },
+        to: { source: "pointer" },
+      },
+    },
+    timing: { duration: 80, easing: "linear" },
+  };
+}
+function createCursorDotRelationship() {
+  return {
+    id: "cursor-dot-follows-pointer",
+    target: "cursor-dot",
+    transform: {
+      translate: {
+        op: "add",
+        values: [
+          {
+            op: "subtract",
+            left: { source: "pointer" },
+            right: { source: "overlayOrigin" },
+          },
+          { x: -5, y: -5 },
+        ],
+      },
+    },
+    timing: { duration: 40, easing: "linear" },
+  };
+}
+
+// src/projectile.js
+function createArrowProjectile({ power, pullDistance }) {
+  return {
+    projectileId: "arrow-shot",
+    target: "flying-arrow",
+    aimTarget: "bow",
+    power,
+    pullDistance,
+    collision: {
+      targetKinds: ["profile-avatar"],
+      shape: "tip",
+      stopOnHit: false,
+    },
+  };
+}
+
+// src/main.js
+var ArcheryOverlay = class extends Overlay {
+  constructor() {
+    super("archery-bow", { position: "bottom-right" });
+    this.contentEl.addClass("archery-root");
+    this.isDrawing = false;
+    this.shotPower = null;
+    this.drawStartedAt = 0;
+  }
+  renderBow() {
+    this.contentEl.empty();
+    const stage = renderSceneNode(
+      this.contentEl,
+      createStaticBowScene({
+        isDrawing: this.isDrawing,
+        shotPower: this.shotPower,
+      }),
+    );
+    stage
+      .onPointerDown(() => this.startDrawing())
+      .onPointerUp(() => this.releaseArrow())
+      .onPointerCancel(() => this.cancelDrawing());
+  }
+  async startDrawing() {
+    if (this.isDrawing || this.shotPower != null) return;
+    this.isDrawing = true;
+    this.drawStartedAt = Date.now();
+    this.renderBow();
+    await this.update();
+  }
+  async releaseArrow() {
+    if (!this.isDrawing || this.shotPower != null) return;
+    const holdTime = Date.now() - this.drawStartedAt;
+    this.isDrawing = false;
+    this.drawStartedAt = 0;
+    const shotPower = getShotPower(holdTime);
+    this.shotPower = shotPower;
+    this.renderBow();
+    await this.update();
+    try {
+      await this.launchProjectile(
+        createArrowProjectile({
+          power: shotPower,
+          pullDistance: getDrawDistance(holdTime),
+        }),
+      );
+    } finally {
+      await this.resetShot();
+    }
+  }
+  async cancelDrawing() {
+    if (!this.isDrawing) return;
+    this.isDrawing = false;
+    this.drawStartedAt = 0;
+    this.renderBow();
+    await this.update();
+  }
+  async resetShot() {
+    if (this.shotPower == null) return;
+    this.shotPower = null;
+    this.renderBow();
+    await this.update();
+  }
+  async bindPointerRelationships() {
+    await Promise.all([
+      this.bindRelationship(createBowAimRelationship()),
+      this.bindRelationship(createCursorDotRelationship()),
+    ]);
+  }
+  onOpen() {
+    this.renderBow();
+  }
+  onClose() {
+    this.isDrawing = false;
+    this.shotPower = null;
+    this.drawStartedAt = 0;
+    this.contentEl.empty();
+  }
+};
+var ArcheryPlugin = class extends Plugin {
+  async onload() {
+    this.overlay = new ArcheryOverlay();
+    this.app.on("projectileHit", ({ projectileId, targetKind }) => {
+      if (projectileId !== "arrow-shot" || targetKind !== "profile-avatar") {
+        return;
+      }
+      new Notice("Hit profile picture", 1200);
+    });
+    this.addSidebarItem("lightning-bolt", "Archery", async () => {
+      try {
+        if (this.overlay.isOpen) {
+          await this.overlay.close();
+          return;
+        }
+        await this.overlay.open();
+        await this.overlay.bindPointerRelationships();
+      } catch (error) {
+        new Notice("Reload the page to enable the Archery overlay", 5e3);
+        throw error;
+      }
+    });
+  }
+};
+ArcheryPlugin.register();
